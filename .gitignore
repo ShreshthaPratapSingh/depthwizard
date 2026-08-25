@@ -48,3 +48,7 @@ Thumbs.db
 backend/data/srtm_tiles/*.tif
 !backend/data/srtm_tiles/.gitkeep
 *.geotiff
+
+# Model weights: pulled via scripts/download_weights.py; commit only the lockfile
+models/*
+!models/pinned_revisions.json
