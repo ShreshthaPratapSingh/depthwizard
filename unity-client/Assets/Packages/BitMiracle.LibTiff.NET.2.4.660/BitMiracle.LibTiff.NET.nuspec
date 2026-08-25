@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>BitMiracle.LibTiff.NET</id>
+    <version>2.4.660</version>
+    <authors>Bit Miracle</authors>
+    <owners>Bit Miracle</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <licenseUrl>https://bitmiracle.github.io/libtiff.net/help/articles/license.html</licenseUrl>
+    <projectUrl>https://bitmiracle.com/libtiff/</projectUrl>
+    <iconUrl>https://bitmiracle.com/favicon.ico</iconUrl>
+    <description>.NET version of LibTiff library made by Bit Miracle</description>
+    <releaseNotes></releaseNotes>
+    <copyright>Copyright (C) 2008-2024, Bit Miracle</copyright>
+    <tags>Image Imaging Img Tif Tiff LibTif LibTiff BitMiracle</tags>
+    <dependencies>
+      <group targetFramework=".NETStandard2.0" />
+    </dependencies>
+  </metadata>
+</package>
