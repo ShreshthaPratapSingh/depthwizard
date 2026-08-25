@@ -1,0 +1,10 @@
+{
+  "depth-anything-v2-base": {
+    "repo_id": "depth-anything/Depth-Anything-V2-Base-hf",
+    "revision": "b1958afc87fb45a9e3746cb387596094de553ed8"
+  },
+  "depth-anything-v2-small": {
+    "repo_id": "depth-anything/Depth-Anything-V2-Small-hf",
+    "revision": "5426e4f0f36572d16453bbda7a8389317b1bef99"
+  }
+}
