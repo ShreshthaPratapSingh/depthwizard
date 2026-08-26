@@ -178,9 +178,9 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
-  far clip plane: 1000
-  field of view: 60
+  near clip plane: 0.01
+  far clip plane: 5000
+  field of view: 129
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -207,7 +207,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 39.1, y: 32.8, z: 9.7}
+  m_LocalPosition: {x: 39.1, y: 3521, z: 1679}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -487,7 +487,7 @@ TerrainCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_TerrainData: {fileID: 15600000, guid: ca11949a3917c8240a67e07b1b1a72ea, type: 2}
+  m_TerrainData: {fileID: 15600000, guid: fc5ffc244c2f30242b56cd256bf9d2ed, type: 2}
   m_EnableTreeColliders: 1
 --- !u!218 &1432275215
 Terrain:
@@ -498,7 +498,7 @@ Terrain:
   m_GameObject: {fileID: 1432275213}
   m_Enabled: 1
   serializedVersion: 6
-  m_TerrainData: {fileID: 15600000, guid: ca11949a3917c8240a67e07b1b1a72ea, type: 2}
+  m_TerrainData: {fileID: 15600000, guid: fc5ffc244c2f30242b56cd256bf9d2ed, type: 2}
   m_TreeDistance: 5000
   m_TreeBillboardDistance: 50
   m_TreeCrossFadeLength: 5
