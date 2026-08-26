@@ -54,6 +54,14 @@ namespace DepthWizard.Camera
                  "Set to 0 to disable terrain clamping.")]
         [SerializeField] private float minHeightAboveTerrain = 2f;
 
+        [Tooltip("Enable XZ boundary clamping to keep the drone within " +
+                 "the terrain's horizontal extent.")]
+        [SerializeField] private bool enableBoundaryClamping = true;
+
+        [Tooltip("Inward margin (meters) from the terrain edge for " +
+                 "boundary clamping, giving visual breathing room.")]
+        [SerializeField] private float boundaryMargin = 10f;
+
         // -----------------------------------------------------------------
         // Input
         // -----------------------------------------------------------------
@@ -131,6 +139,7 @@ namespace DepthWizard.Camera
 
             HandleMovement();
             HandleTerrainClamping();
+            HandleBoundaryClamping();
         }
 
         // -----------------------------------------------------------------
@@ -195,6 +204,60 @@ namespace DepthWizard.Camera
             {
                 Vector3 pos = transform.position;
                 pos.y = minY;
+                transform.position = pos;
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // Boundary Clamping (XZ)
+        // -----------------------------------------------------------------
+
+        /// <summary>
+        /// Prevents the drone from flying outside the terrain's horizontal
+        /// (XZ) extent. Reads bounds from the active terrain's size at
+        /// runtime, so it adapts to any dynamically generated terrain.
+        /// </summary>
+        private void HandleBoundaryClamping()
+        {
+            if (!enableBoundaryClamping) return;
+
+            UnityEngine.Terrain terrain = UnityEngine.Terrain.activeTerrain;
+            if (terrain == null) return;
+
+            Vector3 terrainPos = terrain.transform.position;
+            Vector3 terrainSize = terrain.terrainData.size;
+
+            float minX = terrainPos.x + boundaryMargin;
+            float maxX = terrainPos.x + terrainSize.x - boundaryMargin;
+            float minZ = terrainPos.z + boundaryMargin;
+            float maxZ = terrainPos.z + terrainSize.z - boundaryMargin;
+
+            // Guard against margin being larger than half the terrain
+            // (would invert min/max and cause snapping to center)
+            if (minX >= maxX)
+            {
+                float midX = terrainPos.x + terrainSize.x * 0.5f;
+                minX = midX;
+                maxX = midX;
+            }
+            if (minZ >= maxZ)
+            {
+                float midZ = terrainPos.z + terrainSize.z * 0.5f;
+                minZ = midZ;
+                maxZ = midZ;
+            }
+
+            Vector3 pos = transform.position;
+            float clampedX = Mathf.Clamp(pos.x, minX, maxX);
+            float clampedZ = Mathf.Clamp(pos.z, minZ, maxZ);
+
+            if (clampedX != pos.x || clampedZ != pos.z)
+            {
+                // TODO: Hook for future UI feedback (toast, vignette flash,
+                // edge glow) when the drone hits a boundary. For now, just
+                // clamp silently to avoid log spam every frame.
+                pos.x = clampedX;
+                pos.z = clampedZ;
                 transform.position = pos;
             }
         }
