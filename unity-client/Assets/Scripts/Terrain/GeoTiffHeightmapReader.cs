@@ -39,6 +39,16 @@ namespace DepthWizard.Terrain
 
         /// <summary>Final heightmap resolution after resampling (power-of-two-plus-one).</summary>
         public int ResampledResolution;
+
+        /// <summary>Real-world east-west extent in meters, derived from GeoTIFF metadata.</summary>
+        public float WorldWidth;
+
+        /// <summary>Real-world north-south extent in meters, derived from GeoTIFF metadata.</summary>
+        public float WorldHeight;
+
+        /// <summary>True if WorldWidth/WorldHeight were derived from valid GeoTIFF
+        /// geospatial tags. False means fallback defaults were used.</summary>
+        public bool HasGeoExtent;
     }
 
     /// <summary>
@@ -186,6 +196,9 @@ namespace DepthWizard.Terrain
                 Debug.Log($"[GeoTiffHeightmapReader] Resampled {width}x{height} → " +
                           $"{targetRes}x{targetRes}");
 
+                // --- Compute real-world extent from GeoTIFF metadata ---
+                GeoExtent extent = ReadGeoExtent(tiff, width, height);
+
                 return new HeightmapData
                 {
                     Heights = resampled,
@@ -193,7 +206,10 @@ namespace DepthWizard.Terrain
                     OriginalHeight = height,
                     MinElevation = minElev,
                     MaxElevation = maxElev,
-                    ResampledResolution = targetRes
+                    ResampledResolution = targetRes,
+                    WorldWidth = extent.WidthMeters,
+                    WorldHeight = extent.HeightMeters,
+                    HasGeoExtent = extent.IsValid
                 };
             }
         }
@@ -347,6 +363,210 @@ namespace DepthWizard.Terrain
             if (field != null && field.Length > 0)
                 return field[0].ToInt();
             return defaultValue;
+        }
+
+        // ---------------------------------------------------------------------
+        // GeoTIFF extent calculation
+        // ---------------------------------------------------------------------
+
+        // GeoTIFF tag IDs not in LibTiff.NET's TiffTag enum
+        private const TiffTag TAG_MODEL_PIXEL_SCALE  = (TiffTag)33550;
+        private const TiffTag TAG_MODEL_TIEPOINT     = (TiffTag)33922;
+        private const TiffTag TAG_GEO_KEY_DIRECTORY  = (TiffTag)34735;
+
+        // GeoKey IDs within the GeoKeyDirectoryTag
+        private const int GEO_KEY_MODEL_TYPE = 1024;  // GTModelTypeGeoKey
+        private const int MODEL_TYPE_PROJECTED  = 1;  // meters
+        private const int MODEL_TYPE_GEOGRAPHIC = 2;  // degrees
+
+        // Approximate meters per degree of latitude (constant)
+        private const double METERS_PER_DEGREE_LAT = 111320.0;
+
+        /// <summary>
+        /// Default fallback extent when GeoTIFF lacks georeferencing.
+        /// </summary>
+        private const float DEFAULT_EXTENT = 500f;
+
+        private struct GeoExtent
+        {
+            public float WidthMeters;
+            public float HeightMeters;
+            public bool IsValid;
+        }
+
+        /// <summary>
+        /// Reads GeoTIFF geospatial tags and computes the real-world extent
+        /// of the raster in meters. Returns a fallback of 500×500 m if the
+        /// required tags are missing or malformed.
+        /// </summary>
+        private static GeoExtent ReadGeoExtent(Tiff tiff, int pixelWidth, int pixelHeight)
+        {
+            // --- Read ModelPixelScaleTag (33550): [scaleX, scaleY, scaleZ] ---
+            double scaleX, scaleY;
+            if (!TryReadPixelScale(tiff, out scaleX, out scaleY))
+            {
+                Debug.LogWarning("[GeoTiffHeightmapReader] ModelPixelScaleTag (33550) not found. " +
+                                 $"Using default terrain extent of {DEFAULT_EXTENT}×{DEFAULT_EXTENT} m.");
+                return new GeoExtent { WidthMeters = DEFAULT_EXTENT, HeightMeters = DEFAULT_EXTENT, IsValid = false };
+            }
+
+            // Raw extent in the raster's native CRS units
+            double rawWidth  = pixelWidth  * scaleX;
+            double rawHeight = pixelHeight * scaleY;
+
+            Debug.Log($"[GeoTiffHeightmapReader] Pixel scale: ({scaleX:G6}, {scaleY:G6}), " +
+                      $"raw extent: {rawWidth:G6} × {rawHeight:G6}");
+
+            // --- Determine coordinate system ---
+            int modelType = ReadModelType(tiff);
+
+            float worldWidth, worldHeight;
+
+            if (modelType == MODEL_TYPE_PROJECTED)
+            {
+                // Already in meters (UTM, etc.)
+                worldWidth  = (float)rawWidth;
+                worldHeight = (float)rawHeight;
+
+                Debug.Log($"[GeoTiffHeightmapReader] Projected CRS (meters): " +
+                          $"extent = {worldWidth:F1} × {worldHeight:F1} m");
+            }
+            else
+            {
+                // Geographic CRS (degrees) — need latitude for longitude scaling
+                if (modelType != MODEL_TYPE_GEOGRAPHIC)
+                {
+                    Debug.LogWarning("[GeoTiffHeightmapReader] GeoKeyDirectoryTag (34735) missing " +
+                                     "or GTModelTypeGeoKey not found. Assuming geographic (degrees).");
+                }
+
+                double centerLat = ReadCenterLatitude(tiff, pixelHeight, scaleY);
+                double latRad = centerLat * Math.PI / 180.0;
+
+                double metersPerDegreeLon = METERS_PER_DEGREE_LAT * Math.Cos(latRad);
+
+                worldWidth  = (float)(rawWidth  * metersPerDegreeLon);
+                worldHeight = (float)(rawHeight * METERS_PER_DEGREE_LAT);
+
+                Debug.Log($"[GeoTiffHeightmapReader] Geographic CRS (degrees): " +
+                          $"center lat = {centerLat:F4}°, " +
+                          $"m/deg lon = {metersPerDegreeLon:F1}, " +
+                          $"extent = {worldWidth:F1} × {worldHeight:F1} m");
+            }
+
+            // Sanity check — guard against nonsensical values
+            if (worldWidth <= 0f || worldHeight <= 0f ||
+                float.IsNaN(worldWidth) || float.IsNaN(worldHeight) ||
+                float.IsInfinity(worldWidth) || float.IsInfinity(worldHeight))
+            {
+                Debug.LogWarning($"[GeoTiffHeightmapReader] Computed extent ({worldWidth}×{worldHeight}) " +
+                                 $"is invalid. Using default {DEFAULT_EXTENT}×{DEFAULT_EXTENT} m.");
+                return new GeoExtent { WidthMeters = DEFAULT_EXTENT, HeightMeters = DEFAULT_EXTENT, IsValid = false };
+            }
+
+            return new GeoExtent { WidthMeters = worldWidth, HeightMeters = worldHeight, IsValid = true };
+        }
+
+        /// <summary>
+        /// Reads ModelPixelScaleTag (33550) and extracts scaleX, scaleY.
+        /// Returns false if the tag is missing or malformed.
+        /// </summary>
+        private static bool TryReadPixelScale(Tiff tiff, out double scaleX, out double scaleY)
+        {
+            scaleX = 0;
+            scaleY = 0;
+
+            FieldValue[] field = tiff.GetField(TAG_MODEL_PIXEL_SCALE);
+            if (field == null || field.Length < 2)
+                return false;
+
+            // LibTiff.NET returns this tag as (count, byte[]) for DOUBLE arrays.
+            // The byte array contains 3 doubles: scaleX, scaleY, scaleZ.
+            byte[] data = field[1].ToByteArray();
+            if (data == null || data.Length < 16) // Need at least 2 doubles (16 bytes)
+                return false;
+
+            scaleX = BitConverter.ToDouble(data, 0);
+            scaleY = BitConverter.ToDouble(data, 8);
+
+            return scaleX > 0 && scaleY > 0;
+        }
+
+        /// <summary>
+        /// Reads GeoKeyDirectoryTag (34735) and extracts the GTModelTypeGeoKey
+        /// to determine if the CRS is projected (1=meters) or geographic (2=degrees).
+        /// Returns -1 if the tag or key is not found.
+        /// </summary>
+        private static int ReadModelType(Tiff tiff)
+        {
+            FieldValue[] field = tiff.GetField(TAG_GEO_KEY_DIRECTORY);
+            if (field == null || field.Length < 2)
+                return -1;
+
+            // GeoKeyDirectoryTag is an array of unsigned shorts.
+            // Layout: [keyDirectoryVersion, keyRevision, minorRevision, numberOfKeys,
+            //          keyID1, tiffTagLocation1, count1, valueOffset1,
+            //          keyID2, ...]
+            byte[] data = field[1].ToByteArray();
+            if (data == null || data.Length < 8) // Need at least the header (4 ushorts = 8 bytes)
+                return -1;
+
+            int numberOfKeys = BitConverter.ToUInt16(data, 6);
+
+            for (int i = 0; i < numberOfKeys; i++)
+            {
+                int offset = 8 + i * 8; // Each key entry is 4 ushorts = 8 bytes
+                if (offset + 8 > data.Length) break;
+
+                int keyId = BitConverter.ToUInt16(data, offset);
+                if (keyId == GEO_KEY_MODEL_TYPE)
+                {
+                    // tiffTagLocation=0 means the value is in valueOffset directly
+                    int tiffTagLocation = BitConverter.ToUInt16(data, offset + 2);
+                    if (tiffTagLocation == 0)
+                    {
+                        return BitConverter.ToUInt16(data, offset + 6);
+                    }
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Reads the center latitude of the raster from ModelTiepointTag (33922).
+        /// Falls back to 0° (equator) if the tag is missing, which gives a
+        /// worst-case-correct longitude scaling.
+        /// </summary>
+        private static double ReadCenterLatitude(Tiff tiff, int pixelHeight, double scaleY)
+        {
+            FieldValue[] field = tiff.GetField(TAG_MODEL_TIEPOINT);
+            if (field == null || field.Length < 2)
+            {
+                Debug.LogWarning("[GeoTiffHeightmapReader] ModelTiepointTag (33922) not found. " +
+                                 "Assuming equator (lat=0°) for longitude scaling.");
+                return 0.0;
+            }
+
+            // ModelTiepointTag contains sets of 6 doubles:
+            // [I, J, K, X, Y, Z] where (I,J,K) is raster space and (X,Y,Z) is model space.
+            // We need Y (latitude of the tiepoint, usually the top-left corner).
+            byte[] data = field[1].ToByteArray();
+            if (data == null || data.Length < 48) // Need at least 6 doubles
+            {
+                Debug.LogWarning("[GeoTiffHeightmapReader] ModelTiepointTag too short. " +
+                                 "Assuming equator (lat=0°).");
+                return 0.0;
+            }
+
+            double tiepointY = BitConverter.ToDouble(data, 32); // Y = latitude of origin
+            double tiepointJ = BitConverter.ToDouble(data, 8);  // J = row in raster
+
+            // Compute center latitude: origin lat - (half raster height in degrees)
+            // scaleY is positive (pixel scale), but latitude decreases going south
+            double centerLat = tiepointY - (pixelHeight / 2.0 - tiepointJ) * scaleY;
+
+            return centerLat;
         }
     }
 }
