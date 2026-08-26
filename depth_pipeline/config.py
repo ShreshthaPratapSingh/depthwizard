@@ -1,5 +1,7 @@
 """Pipeline configuration: output names, sizes, and stub model identity."""
 
+from pathlib import Path
+
 # Output resolution of the (square) heightmap. 1025 = 2^10 + 1, a common
 # terrain/heightmap size that tiles cleanly for GPU meshing.
 DEFAULT_TARGET_RES = 1025
@@ -16,3 +18,7 @@ HEIGHTMAP_NAME = "heightmap.png"
 TEXTURE_NAME = "texture.png"
 CONFIDENCE_NAME = "confidence.png"
 METADATA_NAME = "metadata.json"
+SRTM_ALIGNED_NAME = "srtm_aligned.tif"
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_SRTM_TILE_DIR = _REPO_ROOT / "backend" / "data" / "srtm_tiles"
