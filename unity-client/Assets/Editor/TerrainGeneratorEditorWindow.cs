@@ -29,6 +29,7 @@ namespace DepthWizard.Editor
         private string _geoTiffPath = "";
         private float _terrainWidth = 500f;
         private float _terrainLength = 500f;
+        private bool _autoGeoSize = true;
         private bool _autoHeightScale = true;
         private float _manualHeightScale = 200f;
 
@@ -158,10 +159,27 @@ namespace DepthWizard.Editor
                 EditorGUILayout.LabelField("Terrain Settings", EditorStyles.boldLabel);
                 EditorGUILayout.Space(2);
 
-                _terrainWidth = EditorGUILayout.FloatField("Width (m)", _terrainWidth);
-                _terrainLength = EditorGUILayout.FloatField("Length (m)", _terrainLength);
+                // --- XZ Size ---
+                _autoGeoSize = EditorGUILayout.Toggle("Auto Size from GeoTIFF", _autoGeoSize);
+
+                if (_autoGeoSize)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Terrain width/length will be derived from the GeoTIFF's " +
+                        "geospatial metadata (ModelPixelScaleTag + CRS). Falls back " +
+                        "to manual values if metadata is missing.",
+                        MessageType.Info);
+                }
+
+                using (new EditorGUI.DisabledGroupScope(_autoGeoSize))
+                {
+                    _terrainWidth = EditorGUILayout.FloatField("Width (m)", _terrainWidth);
+                    _terrainLength = EditorGUILayout.FloatField("Length (m)", _terrainLength);
+                }
 
                 EditorGUILayout.Space(2);
+
+                // --- Y (Height) Scale ---
                 _autoHeightScale = EditorGUILayout.Toggle("Auto Height Scale", _autoHeightScale);
 
                 if (!_autoHeightScale)
@@ -236,6 +254,14 @@ namespace DepthWizard.Editor
                         $"Elevation max:       {_lastResult.MaxElevation:F2} m");
                     EditorGUILayout.LabelField(
                         $"Elevation range:     {(_lastResult.MaxElevation - _lastResult.MinElevation):F2} m");
+
+                    DrawSeparator();
+
+                    string sizeSource = _lastResult.HasGeoExtent ? "GeoTIFF metadata" : "manual / fallback";
+                    EditorGUILayout.LabelField(
+                        $"World extent (X):    {_lastResult.WorldWidth:F1} m  ({sizeSource})");
+                    EditorGUILayout.LabelField(
+                        $"World extent (Z):    {_lastResult.WorldHeight:F1} m  ({sizeSource})");
                 }
                 finally
                 {
@@ -323,7 +349,32 @@ namespace DepthWizard.Editor
                 terrainData.SetHeights(0, 0, data.Heights);
 
                 // 3. Set terrain size AFTER heights are written
-                terrainData.size = new Vector3(_terrainWidth, heightScale, _terrainLength);
+                // Use geo-derived extent if available and auto-size is enabled,
+                // otherwise fall back to the manual width/length fields.
+                float terrainX, terrainZ;
+
+                if (_autoGeoSize && data.HasGeoExtent)
+                {
+                    terrainX = data.WorldWidth;
+                    terrainZ = data.WorldHeight;
+                    Debug.Log($"[DepthWizard] Using GeoTIFF-derived terrain size: {terrainX:F1} × {terrainZ:F1} m");
+                }
+                else
+                {
+                    terrainX = _terrainWidth;
+                    terrainZ = _terrainLength;
+                    if (_autoGeoSize && !data.HasGeoExtent)
+                    {
+                        Debug.LogWarning($"[DepthWizard] Auto-size enabled but GeoTIFF lacks georeferencing. " +
+                                         $"Falling back to manual size: {terrainX:F1} × {terrainZ:F1} m");
+                    }
+                    else
+                    {
+                        Debug.Log($"[DepthWizard] Using manual terrain size: {terrainX:F1} × {terrainZ:F1} m");
+                    }
+                }
+
+                terrainData.size = new Vector3(terrainX, heightScale, terrainZ);
 
                 // Step 3: Save TerrainData as a persistent asset BEFORE
                 // assigning to any components. TerrainInspector.Raycast()
@@ -417,7 +468,7 @@ namespace DepthWizard.Editor
                 }
 
                 Debug.Log($"[DepthWizard] ✓ Terrain generated successfully.\n" +
-                          $"  Dimensions: {_terrainWidth} × {heightScale:F1} × {_terrainLength} m\n" +
+                          $"  Dimensions: {terrainX:F1} × {heightScale:F1} × {terrainZ:F1} m\n" +
                           $"  Heightmap:  {actualResolution}×{actualResolution}\n" +
                           $"  Elevation:  {data.MinElevation:F2} – {data.MaxElevation:F2} m");
 
