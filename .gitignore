@@ -46,7 +46,9 @@ Thumbs.db
 
 # Project-specific: large geospatial data, not committed raw
 backend/data/srtm_tiles/*.tif
+backend/data/srtm_tiles/*.tiff
 !backend/data/srtm_tiles/.gitkeep
+!backend/data/srtm_tiles/regions.json
 *.geotiff
 
 # Model weights: pulled via scripts/download_weights.py; commit only the lockfile
