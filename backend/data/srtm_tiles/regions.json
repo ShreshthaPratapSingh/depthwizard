@@ -1,0 +1,35 @@
+{
+  "demtype": "SRTMGL1",
+  "crs": "EPSG:4326",
+  "source": "SRTM GL1 30m. Download script tries OpenTopography first, then the public AWS SRTM HGT mirror.",
+  "regions": [
+    {
+      "id": "delhi_urban",
+      "terrain": "urban",
+      "name": "Central Delhi",
+      "bbox": [77.18, 28.58, 77.26, 28.66],
+      "filename": "delhi_urban_srtm.tif"
+    },
+    {
+      "id": "mussoorie_hilly",
+      "terrain": "hilly",
+      "name": "Mussoorie hills",
+      "bbox": [78.04, 30.42, 78.12, 30.50],
+      "filename": "mussoorie_hilly_srtm.tif"
+    },
+    {
+      "id": "silentvalley_forested",
+      "terrain": "forested",
+      "name": "Silent Valley, Western Ghats",
+      "bbox": [76.40, 11.08, 76.48, 11.16],
+      "filename": "silentvalley_forested_srtm.tif"
+    },
+    {
+      "id": "chennai_coastal",
+      "terrain": "coastal",
+      "name": "Chennai Marina coast",
+      "bbox": [80.26, 13.02, 80.32, 13.08],
+      "filename": "chennai_coastal_srtm.tif"
+    }
+  ]
+}
