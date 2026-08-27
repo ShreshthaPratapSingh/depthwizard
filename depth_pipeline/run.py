@@ -25,7 +25,7 @@ from .config import (
     TEXTURE_NAME,
     TEXTURE_SIZE,
 )
-from .geospatial import contract_fields, resolve_elevation_mode
+from .geospatial import apply_to_pipeline_metadata, resolve_elevation_mode
 
 # Pillow renamed resampling filters in 9.1; prefer the new enum, fall back.
 try:
@@ -104,26 +104,22 @@ def process_image(image_path: str, output_dir: str,
 
     inference_ms = round((time.perf_counter() - start) * 1000.0, 3)
 
-    metadata = {
-        "heightmap_path": str(heightmap_path),
-        "texture_path": str(texture_path),
-        "confidence_mask_path": str(confidence_path),
-        "width": target_res,
-        "height": target_res,
-        "crs": mode["georef_crs"],
-        "bbox": mode["georef_bbox"],
-        **contract_fields(mode),
-        "srtm_aligned": mode["srtm_aligned"],
-        "srtm_aligned_path": mode["srtm_aligned_path"],
-        "srtm_coverage": mode["srtm_coverage"],
-        "relative_min": relative_min,
-        "relative_max": relative_max,
-        "calibration": mode["calibration"],
-        "model_id": MODEL_ID,
-        "inference_ms": inference_ms,
-        "status": "ok",
-        "warnings": warnings,
-    }
+    metadata = apply_to_pipeline_metadata(
+        {
+            "heightmap_path": str(heightmap_path),
+            "texture_path": str(texture_path),
+            "confidence_mask_path": str(confidence_path),
+            "width": target_res,
+            "height": target_res,
+            "relative_min": relative_min,
+            "relative_max": relative_max,
+            "model_id": MODEL_ID,
+            "inference_ms": inference_ms,
+            "status": "ok",
+            "warnings": warnings,
+        },
+        mode,
+    )
     (out / METADATA_NAME).write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )
