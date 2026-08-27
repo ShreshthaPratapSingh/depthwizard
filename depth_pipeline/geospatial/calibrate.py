@@ -4,6 +4,17 @@ Samples paired pixels (relative depth vs aligned SRTM), fits a mapping
 (linear first; degree-2 polynomial only if linear residuals clearly fail),
 and applies it to the full depth map. Never raises: failures return a skip
 result so the caller can stay in relative mode.
+
+Input convention (confirm in writing with the ML lead before swapping the
+synthetic stub for a real monocular model):
+  ``relative_depth`` is [0, 1], same shape as the aligned SRTM grid, with
+  **larger value = higher elevation** (SRTM-aligned, not camera disparity).
+  origin/main ``infer_depth`` currently documents this.
+
+  If the model emits inverted disparity (larger = closer / lower), invert
+  before calling ``calibrate_to_srtm`` (e.g. ``1.0 - depth``). An unaccounted
+  inversion makes the linear slope flip sign and R² look like it "broke"
+  after the real model lands; that is a convention mismatch, not a bad fit.
 """
 
 from __future__ import annotations
@@ -105,8 +116,10 @@ def calibrate_to_srtm(
 ) -> CalibrationResult:
     """Fit relative depth → meters using aligned SRTM as the target.
 
-    ``relative_depth`` and ``srtm_m`` must be the same shape. The returned
-    ``elevation_m`` is the mapping applied to the full relative-depth grid.
+    ``relative_depth`` and ``srtm_m`` must be the same shape. Values in
+    ``relative_depth`` are [0, 1] with larger = higher elevation. Invert
+    first if the model is disparity-like. The returned ``elevation_m`` is
+    the mapping applied to the full relative-depth grid.
     """
     try:
         from sklearn.linear_model import LinearRegression

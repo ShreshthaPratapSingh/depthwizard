@@ -23,3 +23,4 @@ CALIBRATION_NAME = "calibration.json"
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SRTM_TILE_DIR = _REPO_ROOT / "backend" / "data" / "srtm_tiles"
+ACCURACY_LOG_PATH = _REPO_ROOT / "docs" / "accuracy_log.jsonl"

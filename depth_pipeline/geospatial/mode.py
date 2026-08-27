@@ -3,6 +3,17 @@
 valid GeoTIFF + covering SRTM → calibrate
 anything else → relative, with warning code:
   no_georef | bad_crs | srtm_unavailable
+
+run.py merge contract (for main/dev owners — do not rewrite this module
+into process_image):
+  1. Produce relative depth in [0, 1] at the output grid (ML inference).
+  2. heightmap_u16 = (relative * 65535).astype(uint16)  # or equivalent
+  3. mode = resolve_elevation_mode(image_path, relative, heightmap_u16,
+                                   output_dir=out)
+  4. Write mode["heightmap_u16"] as heightmap.png
+  5. metadata.update(apply_to_pipeline_metadata({}, mode))
+  Delete the inline read_georef / align_srtm / is_calibrated: False block
+  instead of editing both copies.
 """
 
 from __future__ import annotations
@@ -13,6 +24,7 @@ from typing import TypedDict
 import numpy as np
 
 from ..config import CALIBRATION_NAME
+from .accuracy import append_accuracy_record
 from .calibrate import (
     calibration_sidecar,
     calibrate_to_srtm,
@@ -96,6 +108,23 @@ def contract_fields(mode: ElevationMode) -> dict:
     return {key: mode[key] for key in _CONTRACT_KEYS}
 
 
+def apply_to_pipeline_metadata(base: dict, mode: ElevationMode) -> dict:
+    """Merge elevation-mode fields into process_image metadata.
+
+    Intended as the only geospatial touchpoint in run.py so inference
+    changes and calibration changes do not edit the same block.
+    """
+    out = dict(base)
+    out.update(contract_fields(mode))
+    out["crs"] = mode["georef_crs"]
+    out["bbox"] = mode["georef_bbox"]
+    out["srtm_aligned"] = mode["srtm_aligned"]
+    out["srtm_aligned_path"] = mode["srtm_aligned_path"]
+    out["srtm_coverage"] = mode["srtm_coverage"]
+    out["calibration"] = mode["calibration"]
+    return out
+
+
 def resolve_elevation_mode(
     image_path: str | Path,
     relative_depth: np.ndarray,
@@ -108,6 +137,30 @@ def resolve_elevation_mode(
 
     ``relative_depth`` is 0–1, same shape as ``heightmap_u16``. Never raises.
     """
+    try:
+        return _resolve_elevation_mode(
+            image_path,
+            relative_depth,
+            heightmap_u16,
+            output_dir=output_dir,
+            tile_dir=tile_dir,
+        )
+    except Exception as exc:
+        return _relative(
+            heightmap_u16,
+            warning=WARNING_NO_GEOREF,
+            detail=f"elevation mode failed ({exc})",
+        )
+
+
+def _resolve_elevation_mode(
+    image_path: str | Path,
+    relative_depth: np.ndarray,
+    heightmap_u16: np.ndarray,
+    *,
+    output_dir: str | Path | None = None,
+    tile_dir: str | Path | None = None,
+) -> ElevationMode:
     georef = read_georef(image_path)
     if not georef["is_georeferenced"]:
         code = georef.get("warning_code") or WARNING_NO_GEOREF
@@ -144,6 +197,7 @@ def resolve_elevation_mode(
         extra={
             "srtm_tile_id": srtm["tile_id"],
             "srtm_coverage": srtm["coverage"],
+            "terrain": srtm.get("terrain"),
         },
     )
     if out_dir is not None:
@@ -167,6 +221,19 @@ def resolve_elevation_mode(
         )
 
     packed, min_e, max_e = encode_elevation_u16(cal["elevation_m"])
+    append_accuracy_record(
+        {
+            "terrain": srtm.get("terrain") or "unknown",
+            "srtm_tile_id": srtm["tile_id"],
+            "r_squared": cal["r2"],
+            "rmse_m": cal["rmse_m"],
+            "mae_m": cal["mae_m"],
+            "sample_count": cal["sample_count"],
+            "fit_model": cal["model"],
+            "min_elev_m": min_e,
+            "max_elev_m": max_e,
+        }
+    )
     return {
         "is_georeferenced": True,
         "is_calibrated": True,
