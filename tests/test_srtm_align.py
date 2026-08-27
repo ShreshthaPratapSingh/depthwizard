@@ -146,6 +146,8 @@ class SrtmAlignTests(unittest.TestCase):
             self.assertFalse(meta["is_calibrated"])
             self.assertFalse(meta["srtm_aligned"])
             self.assertIsNone(meta["srtm_tile_id"])
+            self.assertEqual(meta["warning"], "no_georef")
+            self.assertIsNone(meta["r_squared"])
             self.assertTrue(Path(meta["heightmap_path"]).is_file())
 
     def test_process_image_geotiff_without_tile_stays_relative(self) -> None:
@@ -160,9 +162,7 @@ class SrtmAlignTests(unittest.TestCase):
             self.assertTrue(meta["is_georeferenced"])
             self.assertFalse(meta["is_calibrated"])
             self.assertFalse(meta["srtm_aligned"])
-            self.assertTrue(
-                any("calibration skipped" in w.lower() for w in meta["warnings"])
-            )
+            self.assertEqual(meta["warning"], "srtm_unavailable")
             self.assertTrue(Path(meta["heightmap_path"]).is_file())
 
     def test_process_image_geotiff_with_tile_aligns(self) -> None:
@@ -184,10 +184,20 @@ class SrtmAlignTests(unittest.TestCase):
             self.assertTrue(meta["is_georeferenced"])
             self.assertTrue(meta["srtm_aligned"])
             self.assertEqual(meta["srtm_tile_id"], "demo_urban")
-            self.assertFalse(meta["is_calibrated"])
             self.assertTrue(Path(meta["srtm_aligned_path"]).is_file())
             hm = np.array(Image.open(meta["heightmap_path"]))
             self.assertEqual(hm.shape, (33, 33))
+            # Calibration runs when sklearn is available; otherwise relative mode.
+            try:
+                import sklearn  # noqa: F401
+            except ImportError:
+                self.assertFalse(meta["is_calibrated"])
+            else:
+                self.assertTrue(meta["is_calibrated"])
+                self.assertIsNone(meta["warning"])
+                self.assertIsNotNone(meta["r_squared"])
+                self.assertGreaterEqual(meta["sample_count"], 32)
+                self.assertIsNotNone(meta["calibration"])
 
 
 if __name__ == "__main__":
