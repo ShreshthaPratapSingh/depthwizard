@@ -7,6 +7,8 @@ anything else → relative, with warning code:
 run.py merge contract (for main/dev owners — do not rewrite this module
 into process_image):
   1. Produce relative depth in [0, 1] at the output grid (ML inference).
+     infer_depth already returns higher = higher elevation — do not apply
+     ``1 - relative`` here (that fights INVERT_TO_ELEVATION in inference.py).
   2. heightmap_u16 = (relative * 65535).astype(uint16)  # or equivalent
   3. mode = resolve_elevation_mode(image_path, relative, heightmap_u16,
                                    output_dir=out)
