@@ -9,11 +9,19 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from PIL import Image
 
 from depth_pipeline.geospatial.calibrate import calibrate_to_srtm, encode_elevation_u16
+
+
+def _fake_infer_depth(image):
+    arr = np.asarray(image)
+    h, w = arr.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    return ((xx / max(w - 1, 1) + yy / max(h - 1, 1)) / 2.0).astype(np.float32)
 
 try:
     import sklearn  # noqa: F401
@@ -90,7 +98,11 @@ class CalibratePipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             png = Path(tmp) / "plain.png"
             Image.new("RGB", (16, 16)).save(png)
-            meta = process_image(str(png), str(Path(tmp) / "out"), target_res=33)
+            with patch(
+                "depth_pipeline.inference.infer_depth",
+                side_effect=_fake_infer_depth,
+            ):
+                meta = process_image(str(png), str(Path(tmp) / "out"), target_res=33)
             self.assertFalse(meta["is_calibrated"])
             self.assertEqual(meta["warning"], "no_georef")
             self.assertIsNone(meta["r_squared"])
@@ -145,10 +157,16 @@ class CalibratePipelineTests(unittest.TestCase):
             import os
 
             os.environ["DEPTHWIZARD_SRTM_DIR"] = str(tile_dir)
+            os.environ["DEPTHWIZARD_ACCURACY_LOG"] = str(Path(tmp) / "accuracy_log.jsonl")
             try:
-                meta = process_image(str(img), str(Path(tmp) / "out"), target_res=33)
+                with patch(
+                    "depth_pipeline.inference.infer_depth",
+                    side_effect=_fake_infer_depth,
+                ):
+                    meta = process_image(str(img), str(Path(tmp) / "out"), target_res=33)
             finally:
                 os.environ.pop("DEPTHWIZARD_SRTM_DIR", None)
+                os.environ.pop("DEPTHWIZARD_ACCURACY_LOG", None)
 
             self.assertTrue(meta["is_georeferenced"])
             self.assertTrue(meta["srtm_aligned"])

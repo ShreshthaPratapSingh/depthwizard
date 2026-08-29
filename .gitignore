@@ -54,3 +54,9 @@ backend/data/srtm_tiles/*.tiff
 # Model weights: pulled via scripts/download_weights.py; commit only the lockfile
 models/*
 !models/pinned_revisions.json
+
+# Append-only accuracy log. Unit tests and mock-depth wiring runs write here
+# by default; do not commit those rows. Real DA-V2 / SRTM numbers belong in
+# an untracked local copy (or DEPTHWIZARD_ACCURACY_LOG) with an explicit
+# model_id of depth-anything-v2-small — never treat mock R² as judge metrics.
+docs/accuracy_log.jsonl

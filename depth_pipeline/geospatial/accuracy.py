@@ -1,4 +1,10 @@
-"""Append-only accuracy log for Section 16 (RMSE/MAE/R² by terrain type)."""
+"""Append-only accuracy log for Section 16 (RMSE/MAE/R² by terrain type).
+
+``docs/accuracy_log.jsonl`` is gitignored. Unit tests must set
+``DEPTHWIZARD_ACCURACY_LOG`` to a temp file so mock-depth R² never lands
+in a path someone might copy into a PR. Only log rows from real
+``infer_depth`` (Depth-Anything-V2) runs as judge-facing accuracy.
+"""
 
 from __future__ import annotations
 
