@@ -29,6 +29,7 @@ class SrtmAlignResult(TypedDict):
     tile_path: str | None
     aligned_path: str | None
     coverage: float | None
+    terrain: str | None
     warning: str | None
 
 
@@ -40,6 +41,7 @@ def _skipped(warning: str) -> SrtmAlignResult:
         "tile_path": None,
         "aligned_path": None,
         "coverage": None,
+        "terrain": None,
         "warning": warning,
     }
 
@@ -279,6 +281,7 @@ def align_srtm(
             "tile_path": str(tile["path"]),
             "aligned_path": aligned_path,
             "coverage": coverage,
+            "terrain": tile.get("terrain"),
             "warning": None,
         }
     except Exception as exc:

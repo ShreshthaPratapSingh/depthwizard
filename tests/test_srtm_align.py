@@ -9,12 +9,20 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from PIL import Image
 
 from depth_pipeline.geospatial import align_srtm, find_covering_tile
 from depth_pipeline.run import process_image
+
+
+def _fake_infer_depth(image):
+    arr = np.asarray(image)
+    h, w = arr.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    return ((xx / max(w - 1, 1) + yy / max(h - 1, 1)) / 2.0).astype(np.float32)
 
 try:
     import rasterio
@@ -141,28 +149,34 @@ class SrtmAlignTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             png = Path(tmp) / "plain.png"
             Image.new("RGB", (16, 16)).save(png)
-            meta = process_image(str(png), str(Path(tmp) / "out"), target_res=33)
+            with patch(
+                "depth_pipeline.inference.infer_depth", side_effect=_fake_infer_depth
+            ):
+                meta = process_image(str(png), str(Path(tmp) / "out"), target_res=33)
             self.assertFalse(meta["is_georeferenced"])
             self.assertFalse(meta["is_calibrated"])
             self.assertFalse(meta["srtm_aligned"])
             self.assertIsNone(meta["srtm_tile_id"])
+            self.assertEqual(meta["warning"], "no_georef")
+            self.assertIsNone(meta["r_squared"])
             self.assertTrue(Path(meta["heightmap_path"]).is_file())
 
     def test_process_image_geotiff_without_tile_stays_relative(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tif = Path(tmp) / "elsewhere.tif"
             _write_rgb_geotiff(tif, (1.0, 2.0, 1.1, 2.1))
-            meta = process_image(
-                str(tif),
-                str(Path(tmp) / "out"),
-                target_res=33,
-            )
+            with patch(
+                "depth_pipeline.inference.infer_depth", side_effect=_fake_infer_depth
+            ):
+                meta = process_image(
+                    str(tif),
+                    str(Path(tmp) / "out"),
+                    target_res=33,
+                )
             self.assertTrue(meta["is_georeferenced"])
             self.assertFalse(meta["is_calibrated"])
             self.assertFalse(meta["srtm_aligned"])
-            self.assertTrue(
-                any("calibration skipped" in w.lower() for w in meta["warnings"])
-            )
+            self.assertEqual(meta["warning"], "srtm_unavailable")
             self.assertTrue(Path(meta["heightmap_path"]).is_file())
 
     def test_process_image_geotiff_with_tile_aligns(self) -> None:
@@ -177,17 +191,33 @@ class SrtmAlignTests(unittest.TestCase):
             import os
 
             os.environ["DEPTHWIZARD_SRTM_DIR"] = str(tile_dir)
+            os.environ["DEPTHWIZARD_ACCURACY_LOG"] = str(out / "accuracy_log.jsonl")
             try:
-                meta = process_image(str(img), str(out), target_res=33)
+                with patch(
+                    "depth_pipeline.inference.infer_depth",
+                    side_effect=_fake_infer_depth,
+                ):
+                    meta = process_image(str(img), str(out), target_res=33)
             finally:
                 os.environ.pop("DEPTHWIZARD_SRTM_DIR", None)
+                os.environ.pop("DEPTHWIZARD_ACCURACY_LOG", None)
             self.assertTrue(meta["is_georeferenced"])
             self.assertTrue(meta["srtm_aligned"])
             self.assertEqual(meta["srtm_tile_id"], "demo_urban")
-            self.assertFalse(meta["is_calibrated"])
             self.assertTrue(Path(meta["srtm_aligned_path"]).is_file())
             hm = np.array(Image.open(meta["heightmap_path"]))
             self.assertEqual(hm.shape, (33, 33))
+            # Calibration runs when sklearn is available; otherwise relative mode.
+            try:
+                import sklearn  # noqa: F401
+            except ImportError:
+                self.assertFalse(meta["is_calibrated"])
+            else:
+                self.assertTrue(meta["is_calibrated"])
+                self.assertIsNone(meta["warning"])
+                self.assertIsNotNone(meta["r_squared"])
+                self.assertGreaterEqual(meta["sample_count"], 32)
+                self.assertIsNotNone(meta["calibration"])
 
 
 if __name__ == "__main__":

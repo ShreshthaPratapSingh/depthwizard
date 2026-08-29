@@ -18,21 +18,36 @@ class GeorefInfo(TypedDict):
     crs: str | None
     bbox: list[float] | None  # [west, south, east, north]
     warning: str | None
+    warning_code: str | None  # no_georef | bad_crs | None
     width: int | None
     height: int | None
     transform: list[float] | None  # affine a, b, c, d, e, f
 
 
-def _not_georeferenced(warning: str) -> GeorefInfo:
+WARNING_NO_GEOREF = "no_georef"
+WARNING_BAD_CRS = "bad_crs"
+_GTIFF_DRIVERS = {"GTiff", "COG"}
+
+
+def _not_georeferenced(
+    warning: str, warning_code: str = WARNING_NO_GEOREF
+) -> GeorefInfo:
     return {
         "is_georeferenced": False,
         "crs": None,
         "bbox": None,
         "warning": warning,
+        "warning_code": warning_code,
         "width": None,
         "height": None,
         "transform": None,
     }
+
+
+def _code_for_driver(driver: str | None) -> str:
+    if driver in _GTIFF_DRIVERS:
+        return WARNING_BAD_CRS
+    return WARNING_NO_GEOREF
 
 
 def _crs_string(crs: Any) -> str | None:
@@ -95,14 +110,17 @@ def read_georef(image_path: str | Path) -> GeorefInfo:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", NotGeoreferencedWarning)
             with rasterio.open(path) as src:
+                driver = getattr(src, "driver", None)
                 crs_str = _crs_string(src.crs)
                 if crs_str is None:
                     return _not_georeferenced(
-                        "no valid CRS in file metadata; treating as non-georeferenced"
+                        "no valid CRS in file metadata; treating as non-georeferenced",
+                        _code_for_driver(driver),
                     )
                 if not _transform_is_usable(src.transform):
                     return _not_georeferenced(
-                        "missing or identity geotransform; treating as non-georeferenced"
+                        "missing or identity geotransform; treating as non-georeferenced",
+                        WARNING_BAD_CRS if driver in _GTIFF_DRIVERS else WARNING_NO_GEOREF,
                     )
                 bounds = src.bounds
                 bbox = [
@@ -113,7 +131,8 @@ def read_georef(image_path: str | Path) -> GeorefInfo:
                 ]
                 if not all(math.isfinite(v) for v in bbox):
                     return _not_georeferenced(
-                        "bounds are not finite; treating as non-georeferenced"
+                        "bounds are not finite; treating as non-georeferenced",
+                        WARNING_BAD_CRS if driver in _GTIFF_DRIVERS else WARNING_NO_GEOREF,
                     )
                 width = int(src.width)
                 height = int(src.height)
@@ -132,6 +151,7 @@ def read_georef(image_path: str | Path) -> GeorefInfo:
         "crs": crs_str,
         "bbox": bbox,
         "warning": None,
+        "warning_code": None,
         "width": width,
         "height": height,
         "transform": transform,
