@@ -1,0 +1,11 @@
+# Backend-specific dependencies (additive to the root requirements.txt).
+#
+# The root requirements.txt already covers torch, transformers, pillow, numpy,
+# rasterio, etc. This file lists ONLY the packages needed by the FastAPI
+# service layer itself.
+#
+# Install:  pip install -r backend/requirements.txt
+
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
