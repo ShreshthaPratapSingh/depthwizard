@@ -5,16 +5,14 @@ Samples paired pixels (relative depth vs aligned SRTM), fits a mapping
 and applies it to the full depth map. Never raises: failures return a skip
 result so the caller can stay in relative mode.
 
-Input convention (confirm in writing with the ML lead before swapping the
-synthetic stub for a real monocular model):
+Input convention (confirmed against origin/main ``infer_depth``, 2026-08-29):
   ``relative_depth`` is [0, 1], same shape as the aligned SRTM grid, with
-  **larger value = higher elevation** (SRTM-aligned, not camera disparity).
-  origin/main ``infer_depth`` currently documents this.
+  **larger value = higher elevation**. ``infer_depth`` min-max normalizes raw
+  DA-V2 disparity and returns that orientation (``INVERT_TO_ELEVATION = False``
+  for nadir). Do **not** apply ``1 - relative`` in ``run.py``.
 
-  If the model emits inverted disparity (larger = closer / lower), invert
-  before calling ``calibrate_to_srtm`` (e.g. ``1.0 - depth``). An unaccounted
-  inversion makes the linear slope flip sign and R² look like it "broke"
-  after the real model lands; that is a convention mismatch, not a bad fit.
+  If a calibrated slope is negative, flip ``INVERT_TO_ELEVATION`` in
+  ``inference.py`` (ML-owned). Do not invert inside this module.
 """
 
 from __future__ import annotations
@@ -117,8 +115,8 @@ def calibrate_to_srtm(
     """Fit relative depth → meters using aligned SRTM as the target.
 
     ``relative_depth`` and ``srtm_m`` must be the same shape. Values in
-    ``relative_depth`` are [0, 1] with larger = higher elevation. Invert
-    first if the model is disparity-like. The returned ``elevation_m`` is
+    ``relative_depth`` are [0, 1] with larger = higher elevation (the
+    ``infer_depth`` output convention). The returned ``elevation_m`` is
     the mapping applied to the full relative-depth grid.
     """
     try:
