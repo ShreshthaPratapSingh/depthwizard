@@ -33,6 +33,11 @@ namespace DepthWizard.Editor
         private bool _autoHeightScale = true;
         private float _manualHeightScale = 200f;
 
+        // --- Auto-managed terrain material ---
+        private const string TERRAIN_MATERIAL_DIR  = "Assets/Materials";
+        private const string TERRAIN_MATERIAL_PATH = "Assets/Materials/URP_TerrainDefault.mat";
+        private const string TERRAIN_SHADER_NAME   = "Universal Render Pipeline/Terrain/Lit";
+
         // --- State ---
         private HeightmapData _lastResult;
         private string _errorMessage;
@@ -194,6 +199,8 @@ namespace DepthWizard.Editor
                         "in the GeoTIFF (max − min).",
                         MessageType.Info);
                 }
+
+
             }
             finally
             {
@@ -410,6 +417,13 @@ namespace DepthWizard.Editor
                     if (existingTerrain != null)
                     {
                         existingTerrain.terrainData = terrainData;
+
+                        // Assign material BEFORE any terrain layers are applied
+                        Material mat = GetOrCreateTerrainMaterial();
+                        if (mat != null)
+                        {
+                            existingTerrain.materialTemplate = mat;
+                        }
                     }
 
                     // Assign the SAME terrainData to TerrainCollider
@@ -435,6 +449,13 @@ namespace DepthWizard.Editor
                     // Add Terrain component and assign terrainData
                     var terrain = terrainGo.AddComponent<UnityEngine.Terrain>();
                     terrain.terrainData = terrainData;
+
+                    // Assign material BEFORE any terrain layers are applied
+                    Material mat = GetOrCreateTerrainMaterial();
+                    if (mat != null)
+                    {
+                        terrain.materialTemplate = mat;
+                    }
 
                     // Add TerrainCollider and assign the EXACT SAME terrainData
                     var collider = terrainGo.AddComponent<TerrainCollider>();
@@ -489,6 +510,49 @@ namespace DepthWizard.Editor
                 _isGenerating = false;
                 Repaint(); // Refresh the window to show results or errors
             }
+        }
+
+        // -----------------------------------------------------------------
+        // Terrain Material (auto-managed)
+        // -----------------------------------------------------------------
+
+        /// <summary>
+        /// Loads or creates the default URP Terrain/Lit material at a fixed
+        /// project path. Self-healing: if the asset is missing (deleted, or
+        /// fresh repo clone), it is recreated automatically.
+        /// </summary>
+        private static Material GetOrCreateTerrainMaterial()
+        {
+            // Try loading the existing asset first
+            Material mat = AssetDatabase.LoadAssetAtPath<Material>(TERRAIN_MATERIAL_PATH);
+            if (mat != null) return mat;
+
+            // Asset missing — create it
+            Debug.Log($"[DepthWizard] Terrain material not found at {TERRAIN_MATERIAL_PATH}. Creating…");
+
+            Shader shader = Shader.Find(TERRAIN_SHADER_NAME);
+            if (shader == null)
+            {
+                Debug.LogError($"[DepthWizard] Shader '{TERRAIN_SHADER_NAME}' not found. " +
+                               $"Ensure URP is installed and the shader is included in your build. " +
+                               $"The terrain will render with Unity's default (pink) material.");
+                return null;
+            }
+
+            // Ensure the Materials folder exists
+            if (!AssetDatabase.IsValidFolder(TERRAIN_MATERIAL_DIR))
+            {
+                AssetDatabase.CreateFolder("Assets", "Materials");
+            }
+
+            mat = new Material(shader);
+            mat.name = "URP_TerrainDefault";
+
+            AssetDatabase.CreateAsset(mat, TERRAIN_MATERIAL_PATH);
+            AssetDatabase.SaveAssets();
+
+            Debug.Log($"[DepthWizard] Created terrain material: {TERRAIN_MATERIAL_PATH}");
+            return mat;
         }
 
         // -----------------------------------------------------------------
