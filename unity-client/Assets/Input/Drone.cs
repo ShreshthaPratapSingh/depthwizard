@@ -131,6 +131,26 @@ public partial class @DroneControls: IInputActionCollection2, IDisposable
                     ""interactions"": """",
                     ""initialStateCheck"": false,
                     ""priority"": 0
+                },
+                {
+                    ""name"": ""ToggleCameraMode"",
+                    ""type"": ""Button"",
+                    ""id"": ""a1b2c3d4-e5f6-7890-abcd-ef1234567890"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false,
+                    ""priority"": 0
+                },
+                {
+                    ""name"": ""OrbitZoom"",
+                    ""type"": ""Value"",
+                    ""id"": ""b2c3d4e5-f6a7-8901-bcde-f12345678901"",
+                    ""expectedControlType"": ""Axis"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": true,
+                    ""priority"": 0
                 }
             ],
             ""bindings"": [
@@ -243,6 +263,28 @@ public partial class @DroneControls: IInputActionCollection2, IDisposable
                     ""action"": ""Boost"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""d3e4f5a6-b7c8-9012-cdef-a23456789012"",
+                    ""path"": ""<Keyboard>/tab"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""ToggleCameraMode"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""e4f5a6b7-c8d9-0123-defa-b34567890123"",
+                    ""path"": ""<Mouse>/scroll/y"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""OrbitZoom"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -255,6 +297,8 @@ public partial class @DroneControls: IInputActionCollection2, IDisposable
         m_Drone_Look = m_Drone.FindAction("Look", throwIfNotFound: true);
         m_Drone_Vertical = m_Drone.FindAction("Vertical", throwIfNotFound: true);
         m_Drone_Boost = m_Drone.FindAction("Boost", throwIfNotFound: true);
+        m_Drone_ToggleCameraMode = m_Drone.FindAction("ToggleCameraMode", throwIfNotFound: true);
+        m_Drone_OrbitZoom = m_Drone.FindAction("OrbitZoom", throwIfNotFound: true);
     }
 
     ~@DroneControls()
@@ -339,6 +383,8 @@ public partial class @DroneControls: IInputActionCollection2, IDisposable
     private readonly InputAction m_Drone_Look;
     private readonly InputAction m_Drone_Vertical;
     private readonly InputAction m_Drone_Boost;
+    private readonly InputAction m_Drone_ToggleCameraMode;
+    private readonly InputAction m_Drone_OrbitZoom;
     /// <summary>
     /// Provides access to input actions defined in input action map "Drone".
     /// </summary>
@@ -366,6 +412,14 @@ public partial class @DroneControls: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Drone/Boost".
         /// </summary>
         public InputAction @Boost => m_Wrapper.m_Drone_Boost;
+        /// <summary>
+        /// Provides access to the underlying input action "Drone/ToggleCameraMode".
+        /// </summary>
+        public InputAction @ToggleCameraMode => m_Wrapper.m_Drone_ToggleCameraMode;
+        /// <summary>
+        /// Provides access to the underlying input action "Drone/OrbitZoom".
+        /// </summary>
+        public InputAction @OrbitZoom => m_Wrapper.m_Drone_OrbitZoom;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -404,6 +458,12 @@ public partial class @DroneControls: IInputActionCollection2, IDisposable
             @Boost.started += instance.OnBoost;
             @Boost.performed += instance.OnBoost;
             @Boost.canceled += instance.OnBoost;
+            @ToggleCameraMode.started += instance.OnToggleCameraMode;
+            @ToggleCameraMode.performed += instance.OnToggleCameraMode;
+            @ToggleCameraMode.canceled += instance.OnToggleCameraMode;
+            @OrbitZoom.started += instance.OnOrbitZoom;
+            @OrbitZoom.performed += instance.OnOrbitZoom;
+            @OrbitZoom.canceled += instance.OnOrbitZoom;
         }
 
         /// <summary>
@@ -427,6 +487,12 @@ public partial class @DroneControls: IInputActionCollection2, IDisposable
             @Boost.started -= instance.OnBoost;
             @Boost.performed -= instance.OnBoost;
             @Boost.canceled -= instance.OnBoost;
+            @ToggleCameraMode.started -= instance.OnToggleCameraMode;
+            @ToggleCameraMode.performed -= instance.OnToggleCameraMode;
+            @ToggleCameraMode.canceled -= instance.OnToggleCameraMode;
+            @OrbitZoom.started -= instance.OnOrbitZoom;
+            @OrbitZoom.performed -= instance.OnOrbitZoom;
+            @OrbitZoom.canceled -= instance.OnOrbitZoom;
         }
 
         /// <summary>
@@ -495,5 +561,19 @@ public partial class @DroneControls: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnBoost(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "ToggleCameraMode" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnToggleCameraMode(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "OrbitZoom" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnOrbitZoom(InputAction.CallbackContext context);
     }
 }
