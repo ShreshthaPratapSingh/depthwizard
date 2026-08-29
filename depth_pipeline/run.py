@@ -25,8 +25,7 @@ from .config import (
     TEXTURE_NAME,
     TEXTURE_SIZE,
 )
-from .geospatial import align_srtm, read_georef
-from .geospatial.srtm import aligned_output_path
+from .geospatial import apply_to_pipeline_metadata, resolve_elevation_mode
 
 # Pillow renamed resampling filters in 9.1; prefer the new enum, fall back.
 try:
@@ -67,38 +66,8 @@ def process_image(image_path: str, output_dir: str,
     start = time.perf_counter()
     warnings: list[str] = []
 
-    georef = read_georef(image_path)
-    is_georeferenced = georef["is_georeferenced"]
-    if georef["warning"]:
-        warnings.append(georef["warning"])
-
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
-
-    srtm_aligned = False
-    srtm_tile_id = None
-    srtm_aligned_path = None
-    srtm_coverage = None
-    if is_georeferenced:
-        srtm = align_srtm(
-            bbox=georef["bbox"],
-            dst_crs=georef["crs"],
-            dst_shape=(target_res, target_res),
-            output_path=aligned_output_path(out),
-        )
-        if srtm["ok"]:
-            srtm_aligned = True
-            srtm_tile_id = srtm["tile_id"]
-            srtm_aligned_path = srtm["aligned_path"]
-            srtm_coverage = srtm["coverage"]
-            warnings.append(
-                "SRTM aligned to depth grid; metric calibration not applied yet"
-            )
-        else:
-            warnings.append(
-                srtm["warning"]
-                or "SRTM tile unavailable; calibration skipped (relative mode)"
-            )
 
     # --- texture: resized source, RGB, 1024x1024 ---
     with Image.open(image_path) as src:
@@ -106,10 +75,24 @@ def process_image(image_path: str, output_dir: str,
     texture_path = out / TEXTURE_NAME
     texture.save(texture_path)
 
-    # --- heightmap: synthetic sine wave, 16-bit grayscale, target_res^2 ---
+    # --- relative depth (stub: synthetic sine wave) ---
     height16 = _synthetic_heightmap(target_res)
+    relative = height16.astype(np.float64) / 65535.0
+    relative_min = float(relative.min())
+    relative_max = float(relative.max())
+
+    mode = resolve_elevation_mode(
+        image_path, relative, height16, output_dir=out,
+    )
+    height16 = mode["heightmap_u16"]
+    if mode["detail"]:
+        warnings.append(mode["detail"])
+    if mode["is_calibrated"]:
+        r2 = mode["r_squared"]
+        r2_txt = f"{r2:.3f}" if r2 is not None else "n/a"
+        warnings.append(f"calibrated to SRTM (R²={r2_txt}, n={mode['sample_count']})")
+
     heightmap_path = out / HEIGHTMAP_NAME
-    # A uint16 2-D array maps to Pillow mode "I;16" -> 16-bit grayscale PNG.
     Image.fromarray(height16).save(heightmap_path)
 
     # --- confidence: 8-bit grayscale, all 255 (fully confident placeholder) ---
@@ -121,33 +104,22 @@ def process_image(image_path: str, output_dir: str,
 
     inference_ms = round((time.perf_counter() - start) * 1000.0, 3)
 
-    # Relative extent actually present in the emitted heightmap (0..1).
-    relative_min = float(height16.min()) / 65535.0
-    relative_max = float(height16.max()) / 65535.0
-
-    metadata = {
-        "heightmap_path": str(heightmap_path),
-        "texture_path": str(texture_path),
-        "confidence_mask_path": str(confidence_path),
-        "width": target_res,
-        "height": target_res,
-        "is_georeferenced": is_georeferenced,
-        "crs": georef["crs"],
-        "bbox": georef["bbox"],
-        "is_calibrated": False,
-        "srtm_aligned": srtm_aligned,
-        "srtm_tile_id": srtm_tile_id,
-        "srtm_aligned_path": srtm_aligned_path,
-        "srtm_coverage": srtm_coverage,
-        "min_elev_m": None,          # unknown until calibrated to meters
-        "max_elev_m": None,
-        "relative_min": relative_min,
-        "relative_max": relative_max,
-        "model_id": MODEL_ID,
-        "inference_ms": inference_ms,
-        "status": "ok",
-        "warnings": warnings,
-    }
+    metadata = apply_to_pipeline_metadata(
+        {
+            "heightmap_path": str(heightmap_path),
+            "texture_path": str(texture_path),
+            "confidence_mask_path": str(confidence_path),
+            "width": target_res,
+            "height": target_res,
+            "relative_min": relative_min,
+            "relative_max": relative_max,
+            "model_id": MODEL_ID,
+            "inference_ms": inference_ms,
+            "status": "ok",
+            "warnings": warnings,
+        },
+        mode,
+    )
     (out / METADATA_NAME).write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )

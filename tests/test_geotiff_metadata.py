@@ -39,11 +39,13 @@ class ReadGeorefFallbackTests(unittest.TestCase):
         self.assertIsNone(info["bbox"])
         self.assertIsInstance(info["warning"], str)
         self.assertTrue(info["warning"])
+        self.assertEqual(info["warning_code"], "no_georef")
 
     def test_missing_file_does_not_raise(self) -> None:
         info = read_georef("/no/such/file.tif")
         self.assertFalse(info["is_georeferenced"])
         self.assertIn("not found", info["warning"].lower())
+        self.assertEqual(info["warning_code"], "no_georef")
 
 
 @unittest.skipUnless(HAS_RASTERIO, "rasterio not installed")
@@ -92,6 +94,7 @@ class ReadGeorefGeoTiffTests(unittest.TestCase):
             info = read_georef(tif)
         self.assertFalse(info["is_georeferenced"])
         self.assertIn("CRS", info["warning"])
+        self.assertEqual(info["warning_code"], "bad_crs")
 
     def test_geotiff_identity_transform(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -111,6 +114,7 @@ class ReadGeorefGeoTiffTests(unittest.TestCase):
             info = read_georef(tif)
         self.assertFalse(info["is_georeferenced"])
         self.assertIn("transform", info["warning"].lower())
+        self.assertEqual(info["warning_code"], "bad_crs")
 
 
 if __name__ == "__main__":
