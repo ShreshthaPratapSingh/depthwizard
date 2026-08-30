@@ -20,20 +20,12 @@ import numpy as np
 from PIL import Image
 
 from .config import (
-    CONFIDENCE_NAME,
     DEFAULT_TARGET_RES,
-    HEIGHTMAP_NAME,
     METADATA_NAME,
-    TEXTURE_NAME,
     TEXTURE_SIZE,
 )
+from .export import export_artifacts, resize_elevation01
 from .geospatial import apply_to_pipeline_metadata, resolve_elevation_mode
-
-# Pillow renamed resampling filters in 9.1; prefer the new enum, fall back.
-try:
-    _LANCZOS = Image.Resampling.LANCZOS
-except AttributeError:  # Pillow < 9.1
-    _LANCZOS = Image.LANCZOS
 
 
 def process_image(image_path: str, output_dir: str,
@@ -52,27 +44,20 @@ def process_image(image_path: str, output_dir: str,
     out.mkdir(parents=True, exist_ok=True)
 
     with Image.open(image_path) as src:
-        rgb = src.convert("RGB")
-        source_rgb = np.asarray(rgb)
-        texture = rgb.resize((TEXTURE_SIZE, TEXTURE_SIZE), _LANCZOS)
-    texture_path = out / TEXTURE_NAME
-    texture.save(texture_path)
+        source_rgb = np.asarray(src.convert("RGB"))
 
     elevation01 = infer_depth(source_rgb)
     inference_ms = get_last_inference_ms()
 
-    elev_img = Image.fromarray(elevation01.astype(np.float32))
-    elev_img = elev_img.resize((target_res, target_res), _LANCZOS)
-    elev_resized = np.clip(np.asarray(elev_img, dtype=np.float32), 0.0, 1.0)
+    # Resize to the output grid here so calibration sees exactly the same array
+    # export_artifacts encodes; passing elev_resized (already target_res square)
+    # makes export's internal resize a 1:1 no-op, so there is no double resample.
+    elev_resized = resize_elevation01(elevation01, target_res)
     height16 = (elev_resized * 65535.0).round().astype(np.uint16)
-
-    relative_min = float(elev_resized.min())
-    relative_max = float(elev_resized.max())
 
     mode = resolve_elevation_mode(
         image_path, elev_resized, height16, output_dir=out,
     )
-    height16 = mode["heightmap_u16"]
     if mode["detail"]:
         warnings.append(mode["detail"])
     if mode["is_calibrated"]:
@@ -80,22 +65,20 @@ def process_image(image_path: str, output_dir: str,
         r2_txt = f"{r2:.3f}" if r2 is not None else "n/a"
         warnings.append(f"calibrated to SRTM (R²={r2_txt}, n={mode['sample_count']})")
 
-    heightmap_path = out / HEIGHTMAP_NAME
-    Image.fromarray(height16).save(heightmap_path)
-
-    confidence = np.full((target_res, target_res), 255, dtype=np.uint8)
-    confidence_path = out / CONFIDENCE_NAME
-    Image.fromarray(confidence, mode="L").save(confidence_path)
+    artifacts = export_artifacts(
+        elev_resized, source_rgb, target_res, TEXTURE_SIZE, out,
+        heightmap_u16=mode["heightmap_u16"],
+    )
 
     metadata = apply_to_pipeline_metadata(
         {
-            "heightmap_path": str(heightmap_path),
-            "texture_path": str(texture_path),
-            "confidence_mask_path": str(confidence_path),
+            "heightmap_path": str(artifacts["heightmap_path"]),
+            "texture_path": str(artifacts["texture_path"]),
+            "confidence_mask_path": str(artifacts["confidence_mask_path"]),
             "width": target_res,
             "height": target_res,
-            "relative_min": relative_min,
-            "relative_max": relative_max,
+            "relative_min": artifacts["relative_min"],
+            "relative_max": artifacts["relative_max"],
             "model_id": MODEL_ID,
             "inference_ms": inference_ms,
             "status": "ok",

@@ -60,3 +60,7 @@ models/*
 # an untracked local copy (or DEPTHWIZARD_ACCURACY_LOG) with an explicit
 # model_id of depth-anything-v2-small — never treat mock R² as judge metrics.
 docs/accuracy_log.jsonl
+
+# Generated pipeline outputs and local test images
+outputs/
+samples/
