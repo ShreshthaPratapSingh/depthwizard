@@ -11,10 +11,13 @@ inference.py and belongs to the ML owner).
 CLI:
     python -m depth_pipeline.run <image> <outdir> [--target-res N]
 """
+from __future__ import annotations
+
 import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 from PIL import Image
@@ -29,12 +32,20 @@ from .geospatial import apply_to_pipeline_metadata, resolve_elevation_mode
 
 
 def process_image(image_path: str, output_dir: str,
-                  target_res: int = DEFAULT_TARGET_RES) -> dict:
+                  target_res: int = DEFAULT_TARGET_RES,
+                  on_stage: Callable[[str, str], None] | None = None) -> dict:
     """Process a single image into heightmap/texture/confidence + metadata.
 
     ``infer_depth`` must already be [0, 1], higher = higher elevation.
     Do not apply ``1 - relative`` before resolve_elevation_mode.
+
+    If *on_stage* is provided it is called as ``on_stage(stage, detail)``
+    at each major step so callers (e.g. the async backend endpoint) can
+    report progress.
     """
+    def _stage(name: str, detail: str = "") -> None:
+        if on_stage is not None:
+            on_stage(name, detail)
     # Imported here so torch stays out of import time.
     from .inference import MODEL_ID, get_last_inference_ms, infer_depth
 
@@ -46,6 +57,7 @@ def process_image(image_path: str, output_dir: str,
     with Image.open(image_path) as src:
         source_rgb = np.asarray(src.convert("RGB"))
 
+    _stage("inferring", "running depth model")
     elevation01 = infer_depth(source_rgb)
     inference_ms = get_last_inference_ms()
 
@@ -55,6 +67,7 @@ def process_image(image_path: str, output_dir: str,
     elev_resized = resize_elevation01(elevation01, target_res)
     height16 = (elev_resized * 65535.0).round().astype(np.uint16)
 
+    _stage("calibrating", "SRTM alignment and calibration")
     mode = resolve_elevation_mode(
         image_path, elev_resized, height16, output_dir=out,
     )
@@ -65,6 +78,7 @@ def process_image(image_path: str, output_dir: str,
         r2_txt = f"{r2:.3f}" if r2 is not None else "n/a"
         warnings.append(f"calibrated to SRTM (R²={r2_txt}, n={mode['sample_count']})")
 
+    _stage("exporting", "writing artifacts")
     artifacts = export_artifacts(
         elev_resized, source_rgb, target_res, TEXTURE_SIZE, out,
         heightmap_u16=mode["heightmap_u16"],
@@ -89,6 +103,7 @@ def process_image(image_path: str, output_dir: str,
     (out / METADATA_NAME).write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )
+    _stage("done")
     return metadata
 
 
