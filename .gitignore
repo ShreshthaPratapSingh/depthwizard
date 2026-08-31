@@ -64,3 +64,5 @@ docs/accuracy_log.jsonl
 # Generated pipeline outputs and local test images
 outputs/
 samples/
+
+DepthWizard_SIH26175_PRD.md
