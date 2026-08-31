@@ -49,8 +49,41 @@ namespace DepthWizard.Export
         private UnityEngine.Terrain targetTerrain;
 
         // =====================================================================
-        // Public convenience API (static — call from anywhere)
+        // Runtime key trigger (E key exports both OBJ + heightmap PNG)
         // =====================================================================
+
+        private void Update()
+        {
+            if (UnityEngine.Input.GetKeyDown(KeyCode.E))
+            {
+                ExportAll();
+            }
+        }
+
+        /// <summary>
+        /// Export both OBJ mesh and 16-bit heightmap PNG to the Exports folder.
+        /// </summary>
+        public void ExportAll()
+        {
+            string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string exportDir = Path.Combine(Application.persistentDataPath, "Exports");
+
+            string objPath = Path.Combine(exportDir, $"terrain_{timestamp}.obj");
+            string pngPath = Path.Combine(exportDir, $"heightmap_{timestamp}.png");
+
+            UnityEngine.Terrain terrain = targetTerrain != null
+                ? targetTerrain : UnityEngine.Terrain.activeTerrain;
+
+            if (!ValidateTerrain(terrain)) return;
+
+            bool objOk = ExportTerrainToObj(terrain, objPath, exportResolutionStep);
+            bool pngOk = ExportHeightmapToPng(terrain, pngPath);
+
+            if (objOk || pngOk)
+            {
+                Debug.Log($"[TerrainExporter] Export complete. Output: {exportDir}");
+            }
+        }
 
         /// <summary>
         /// Export the currently active terrain as a Wavefront OBJ file (+ .mtl

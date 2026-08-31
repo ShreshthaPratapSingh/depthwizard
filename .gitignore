@@ -63,4 +63,13 @@ docs/accuracy_log.jsonl
 
 # Generated pipeline outputs and local test images
 outputs/
-samples/
+
+# Ignore loose sample directories from ad-hoc test runs, but not the curated
+# backend/data/samples/ directory (which has its own rules below).
+/samples/
+
+# backend/data/samples/: track the manifest and docs, ignore image files.
+backend/data/samples/*
+!backend/data/samples/.gitkeep
+!backend/data/samples/samples.json
+!backend/data/samples/README.md

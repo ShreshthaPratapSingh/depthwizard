@@ -1,0 +1,25 @@
+{
+  "samples": [
+    {
+      "id": "delhi_urban",
+      "name": "Central Delhi (GeoTIFF)",
+      "filename": "delhi_urban.tif",
+      "is_georef": true,
+      "region": "delhi_urban"
+    },
+    {
+      "id": "mussoorie_hilly",
+      "name": "Mussoorie Hills (GeoTIFF)",
+      "filename": "mussoorie_hilly.tif",
+      "is_georef": true,
+      "region": "mussoorie_hilly"
+    },
+    {
+      "id": "chennai_coastal",
+      "name": "Chennai Coast (JPEG)",
+      "filename": "chennai_coastal.jpg",
+      "is_georef": false,
+      "region": "chennai_coastal"
+    }
+  ]
+}
