@@ -272,7 +272,10 @@ namespace DepthWizard.Networking
 
                 if (request.result != UnityWebRequest.Result.Success)
                 {
-                    Debug.LogError($"[BackendClient] Async submit failed: {request.error}");
+                    Debug.LogError(
+                        $"[BackendClient] Async submit failed: {request.error}\n" +
+                        $"  HTTP {request.responseCode}\n" +
+                        $"  Body: {request.downloadHandler?.text?.Substring(0, Mathf.Min(request.downloadHandler?.text?.Length ?? 0, 500))}");
                     IsBusy = false;
                     yield break;
                 }
@@ -431,6 +434,7 @@ namespace DepthWizard.Networking
                     terrainLength: terrainSize,
                     heightScale: scale,
                     baseAltitude: baseAltitude,
+                    relativeHeightScale: heightScale,
                     metadata: response
                 );
 
@@ -500,6 +504,7 @@ namespace DepthWizard.Networking
                     terrainLength: terrainSize,
                     heightScale: scale,
                     baseAltitude: baseAltitude,
+                    relativeHeightScale: heightScale,
                     metadata: response
                 );
 

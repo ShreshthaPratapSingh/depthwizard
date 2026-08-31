@@ -100,7 +100,7 @@ namespace DepthWizard.Terrain
 
             terrain.terrainData.size = new Vector3(
                 terrainWidth, scale, terrainLength);
-            transform.position = new Vector3(0f, yPos, 0f);
+            transform.position = new Vector3(transform.position.x, yPos, transform.position.z);
 
             // Force collider rebuild after resizing
             var collider = GetComponent<TerrainCollider>();

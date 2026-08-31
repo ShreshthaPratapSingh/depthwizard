@@ -79,7 +79,8 @@ async def process(file: UploadFile = File(...)):
     tmp_dir = tempfile.mkdtemp(prefix="depthwizard_")
     try:
         # --- Save the upload to disk ---
-        input_path = Path(tmp_dir) / (file.filename or "upload.png")
+        filename = Path(file.filename or "upload.png").name
+        input_path = Path(tmp_dir) / filename
         with open(input_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
 
@@ -97,7 +98,7 @@ async def process(file: UploadFile = File(...)):
             },
         )
     finally:
-        # Clean up the temp directory.  Best-effort — don't crash if removal
+        # Clean up the temp directory. Best-effort, don't crash if removal
         # fails (e.g. file lock on Windows).
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -229,6 +230,7 @@ def _run_pipeline(input_path: Path, tmp_dir: str) -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 _jobs: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
 
 
 @app.post("/process-async")
@@ -239,18 +241,20 @@ async def process_async(file: UploadFile = File(...)):
     and results.
     """
     tmp_dir = tempfile.mkdtemp(prefix="depthwizard_")
-    input_path = Path(tmp_dir) / (file.filename or "upload.png")
+    filename = Path(file.filename or "upload.png").name
+    input_path = Path(tmp_dir) / filename
     with open(input_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
     job_id = uuid.uuid4().hex[:12]
-    _jobs[job_id] = {
-        "status": "queued",
-        "stage": "",
-        "progress_detail": "",
-        "result": None,
-        "error": None,
-    }
+    with _jobs_lock:
+        _jobs[job_id] = {
+            "status": "queued",
+            "stage": "",
+            "progress_detail": "",
+            "result": None,
+            "error": None,
+        }
 
     thread = threading.Thread(
         target=_run_pipeline_job,
@@ -269,7 +273,11 @@ async def get_job(job_id: str):
     While running, returns the current pipeline stage. When done, returns
     the same response payload as POST /process.
     """
-    job = _jobs.get(job_id)
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is not None:
+            job = dict(job)
+
     if job is None:
         return JSONResponse(
             status_code=404,
@@ -283,9 +291,11 @@ def _run_pipeline_job(job_id: str, input_path: Path, tmp_dir: str) -> None:
     from depth_pipeline.run import process_image
 
     def _on_stage(stage: str, detail: str = "") -> None:
-        _jobs[job_id]["status"] = "running"
-        _jobs[job_id]["stage"] = stage
-        _jobs[job_id]["progress_detail"] = detail
+        with _jobs_lock:
+            if job_id in _jobs:
+                _jobs[job_id]["status"] = "running"
+                _jobs[job_id]["stage"] = stage
+                _jobs[job_id]["progress_detail"] = detail
 
     try:
         output_dir = Path(tmp_dir) / "output"
@@ -304,15 +314,19 @@ def _run_pipeline_job(job_id: str, input_path: Path, tmp_dir: str) -> None:
             "texture_b64": texture_b64,
         }
 
-        _jobs[job_id]["status"] = "done"
-        _jobs[job_id]["stage"] = "done"
-        _jobs[job_id]["result"] = result
+        with _jobs_lock:
+            if job_id in _jobs:
+                _jobs[job_id]["status"] = "done"
+                _jobs[job_id]["stage"] = "done"
+                _jobs[job_id]["result"] = result
 
     except Exception as exc:
-        _jobs[job_id]["status"] = "error"
-        _jobs[job_id]["stage"] = "error"
-        _jobs[job_id]["error"] = str(exc)
-        _jobs[job_id]["progress_detail"] = traceback.format_exc()
+        with _jobs_lock:
+            if job_id in _jobs:
+                _jobs[job_id]["status"] = "error"
+                _jobs[job_id]["stage"] = "error"
+                _jobs[job_id]["error"] = str(exc)
+                _jobs[job_id]["progress_detail"] = traceback.format_exc()
 
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
