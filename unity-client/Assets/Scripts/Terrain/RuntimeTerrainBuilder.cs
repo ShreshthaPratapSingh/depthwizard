@@ -51,6 +51,8 @@ namespace DepthWizard.Terrain
         /// <param name="terrainWidth">Terrain XZ width in meters.</param>
         /// <param name="terrainLength">Terrain XZ length in meters.</param>
         /// <param name="heightScale">Terrain Y height scale in meters.</param>
+        /// <param name="baseAltitude">Vertical offset for the terrain (min_elev_m when calibrated, 0 otherwise).</param>
+        /// <param name="relativeHeightScale">Relative height scale in meters for uncalibrated mode.</param>
         /// <param name="metadata">Response metadata (for logging; may be null).</param>
         public static void Build(
             byte[] heightmapPngBytes,
@@ -59,6 +61,8 @@ namespace DepthWizard.Terrain
             float terrainWidth,
             float terrainLength,
             float heightScale,
+            float baseAltitude = 0f,
+            float relativeHeightScale = 200f,
             Networking.ProcessResponse metadata = null)
         {
             // -----------------------------------------------------------------
@@ -180,10 +184,29 @@ namespace DepthWizard.Terrain
                 Debug.Log("[RuntimeTerrainBuilder] Created new terrain.");
             }
 
+            // Position terrain vertically at base altitude
+            terrainGo.transform.position = new Vector3(
+                terrainGo.transform.position.x, baseAltitude, terrainGo.transform.position.z);
+
+            // -----------------------------------------------------------------
+            // Step 6: Attach elevation controller for runtime mode switching
+            // -----------------------------------------------------------------
+            bool isCal = metadata != null && metadata.is_calibrated;
+            float calibratedScale = isCal ? heightScale : relativeHeightScale;
+            float calibratedBase = isCal ? baseAltitude : 0f;
+
+            var ctrl = terrainGo.GetComponent<TerrainElevationController>();
+            if (ctrl == null)
+                ctrl = terrainGo.AddComponent<TerrainElevationController>();
+            ctrl.Init(
+                terrainWidth, terrainLength,
+                relativeHeightScale, calibratedScale, calibratedBase, isCal);
+
             Debug.Log(
-                $"[RuntimeTerrainBuilder] ✓ Terrain built: " +
-                $"{terrainWidth:F0}×{heightScale:F0}×{terrainLength:F0}m, " +
-                $"heightmap {actualResolution}×{actualResolution}");
+                $"[RuntimeTerrainBuilder] Terrain built: " +
+                $"{terrainWidth:F0}x{heightScale:F0}x{terrainLength:F0}m, " +
+                $"base altitude {baseAltitude:F1}m, " +
+                $"heightmap {actualResolution}x{actualResolution}");
         }
 
         // -----------------------------------------------------------------
