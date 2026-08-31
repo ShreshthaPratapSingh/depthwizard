@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "io.github.gkngkc.unity-standalone-file-browser": "https://github.com/shiena/UnityStandaloneFileBrowser.git?path=Packages/StandaloneFileBrowser#upm",
     "com.github-glitchenzo.nugetforunity": "https://github.com/GlitchEnzo/NuGetForUnity.git?path=/src/NuGetForUnity",
     "com.unity.ai.navigation": "2.0.14",
     "com.unity.collab-proxy": "2.13.3",
