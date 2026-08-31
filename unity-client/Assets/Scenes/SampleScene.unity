@@ -277,6 +277,11 @@ MonoBehaviour:
   minHeightAboveTerrain: 2
   enableBoundaryClamping: 1
   boundaryMargin: 10
+  orbitTarget: {fileID: 0}
+  minOrbitDistance: 20
+  maxOrbitDistance: 500
+  orbitSensitivity: 0.25
+  zoomSpeed: 15
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -404,7 +409,7 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
---- !u!1 &579634959
+--- !u!1 &702276986
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -412,87 +417,67 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 579634962}
-  - component: {fileID: 579634961}
-  - component: {fileID: 579634960}
+  - component: {fileID: 702276990}
+  - component: {fileID: 702276989}
+  - component: {fileID: 702276988}
+  - component: {fileID: 702276987}
   m_Layer: 0
-  m_Name: DepthWizard_Terrain
+  m_Name: TerrainManager
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!154 &579634960
-TerrainCollider:
+--- !u!114 &702276987
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 579634959}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ProvidesContacts: 0
+  m_GameObject: {fileID: 702276986}
   m_Enabled: 1
-  serializedVersion: 2
-  m_TerrainData: {fileID: 15600000, guid: 74b4b780583ceae4683c19e694d7b514, type: 2}
-  m_EnableTreeColliders: 1
---- !u!218 &579634961
-Terrain:
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ed2c0de204c8bd4d93fb104e9709045, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ExportTest
+--- !u!114 &702276988
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 579634959}
+  m_GameObject: {fileID: 702276986}
   m_Enabled: 1
-  serializedVersion: 6
-  m_TerrainData: {fileID: 15600000, guid: 74b4b780583ceae4683c19e694d7b514, type: 2}
-  m_TreeDistance: 5000
-  m_TreeBillboardDistance: 50
-  m_TreeCrossFadeLength: 5
-  m_TreeMaximumFullLODCount: 50
-  m_DetailObjectDistance: 80
-  m_DetailObjectDensity: 1
-  m_HeightmapPixelError: 5
-  m_SplatMapDistance: 1000
-  m_HeightmapMinimumLODSimplification: 0
-  m_HeightmapMaximumLOD: 0
-  m_ShadowCastingMode: 2
-  m_DrawHeightmap: 1
-  m_DrawInstanced: 0
-  m_DrawTreesAndFoliage: 1
-  m_StaticShadowCaster: 0
-  m_IgnoreQualitySettings: 0
-  m_ReflectionProbeUsage: 1
-  m_MaterialTemplate: {fileID: 2100000, guid: 0fb8c6423f95b4341983b22cb8cde93e, type: 2}
-  m_BakeLightProbesForTrees: 1
-  m_PreserveTreePrototypeLayers: 0
-  m_DeringLightProbesForTrees: 1
-  m_ReceiveGI: 1
-  m_ScaleInLightmap: 1
-  m_LightmapParameters: {fileID: 15203, guid: 0000000000000000f000000000000000, type: 0}
-  m_GroupingID: 0
-  m_RenderingLayerMask: 1
-  m_AllowAutoConnect: 0
-  m_EnableHeightmapRayTracing: 1
-  m_EnableTreesAndDetailsRayTracing: 0
-  m_EnableHeightmapLODFrustumCulling: 1
-  m_TreeMotionVectorModeOverride: 3
---- !u!4 &579634962
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a5456acf795620419d8b4a0a7c47e0b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TestTrigger
+  testImagePath: C:\Users\user\Downloads\ManaliSattliteimagesnapshot.jpeg
+--- !u!114 &702276989
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 702276986}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d2fcbf9f0f5c82408556987dad452f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DepthWizard.Networking.BackendClient
+  backendUrl: http://localhost:8000
+  terrainSize: 500
+  heightScale: 200
+--- !u!4 &702276990
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 579634959}
+  m_GameObject: {fileID: 702276986}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 5062.558, y: -0.00019, z: 11556.683}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -554,4 +539,4 @@ SceneRoots:
   - {fileID: 330585546}
   - {fileID: 410087041}
   - {fileID: 832575519}
-  - {fileID: 579634962}
+  - {fileID: 702276990}

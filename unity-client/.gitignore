@@ -108,3 +108,10 @@ InitTestScene*.unity*
 # Imported third-party assets (Asset Store packages, etc.)
 /[Aa]ssets/Imported?Assets/
 /[Aa]ssets/Imported?Assets.meta
+
+# Recovery files
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
+
+# Exports
+/Exports/
