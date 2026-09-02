@@ -7,7 +7,7 @@
 // ImageSessionManager.
 //
 // Validation rules:
-//   - Extension must be .png, .jpg, or .jpeg
+//   - Extension must be .png, .jpg, .jpeg, .tif, or .tiff
 //   - File size must be ≤ 20MB
 //   - Texture2D.LoadImage() must succeed (valid image data)
 //
@@ -38,12 +38,12 @@ namespace DepthWizard.UI
 
         // Supported extensions (lowercase, with dot)
         private static readonly string[] ALLOWED_EXTENSIONS =
-            { ".png", ".jpg", ".jpeg" };
+            { ".png", ".jpg", ".jpeg", ".tif", ".tiff" };
 
         // File browser filter
         private static readonly ExtensionFilter[] FILE_FILTERS = new[]
         {
-            new ExtensionFilter("Image Files", "png", "jpg", "jpeg"),
+            new ExtensionFilter("Image Files", "png", "jpg", "jpeg", "tif", "tiff"),
             new ExtensionFilter("All Files", "*"),
         };
 
@@ -94,7 +94,7 @@ namespace DepthWizard.UI
         /// Load an image from an absolute file path. Validates type and size,
         /// creates a Texture2D, and stores it in <see cref="ImageSessionManager"/>.
         /// </summary>
-        /// <param name="path">Absolute path to a PNG or JPG file.</param>
+        /// <param name="path">Absolute path to a PNG, JPG, or GeoTIFF file.</param>
         public void LoadImageFromPath(string path)
         {
             Debug.Log($"[ImagePicker] Loading: {path}");
@@ -112,7 +112,7 @@ namespace DepthWizard.UI
             {
                 ReportError(
                     $"Unsupported file type: {ext}\n" +
-                    "Accepted formats: PNG, JPG");
+                    "Accepted formats: PNG, JPG, GeoTIFF");
                 return;
             }
 
@@ -145,23 +145,41 @@ namespace DepthWizard.UI
                 return;
             }
 
-            // --- Load texture ---
-            // Create a 2x2 placeholder, then LoadImage overwrites it
-            Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            texture.filterMode = FilterMode.Bilinear;
+            // --- Load texture (preview) ---
+            // GeoTIFF (.tif/.tiff) cannot be decoded by Unity's
+            // Texture2D.LoadImage() — skip the preview for those files.
+            // The backend handles all real format processing.
+            Texture2D texture = null;
+            bool isGeoTiff = IsGeoTiff(ext);
 
-            if (!texture.LoadImage(bytes))
+            if (!isGeoTiff)
             {
-                DestroyImmediate(texture);
-                ReportError("Failed to decode image data.\nThe file may be corrupted.");
-                return;
+                texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                texture.filterMode = FilterMode.Bilinear;
+
+                if (!texture.LoadImage(bytes))
+                {
+                    DestroyImmediate(texture);
+                    ReportError("Failed to decode image data.\nThe file may be corrupted.");
+                    return;
+                }
             }
 
             // --- Success: store in session manager ---
+            // For GeoTIFF, texture is null — UI should show filename instead of preview.
             ImageSessionManager.Instance.SetImage(bytes, path, texture);
 
-            string msg = $"Image loaded: {texture.width}×{texture.height}  " +
-                         $"({fileSize / 1024}KB)";
+            string msg;
+            if (isGeoTiff)
+            {
+                msg = $"GeoTIFF loaded: {Path.GetFileName(path)}  " +
+                      $"({fileSize / 1024}KB)";
+            }
+            else
+            {
+                msg = $"Image loaded: {texture.width}×{texture.height}  " +
+                      $"({fileSize / 1024}KB)";
+            }
             Debug.Log($"[ImagePicker] {msg}");
             OnSuccess?.Invoke(msg);
         }
@@ -191,6 +209,12 @@ namespace DepthWizard.UI
                     return true;
             }
             return false;
+        }
+
+        private static bool IsGeoTiff(string ext)
+        {
+            return string.Equals(ext, ".tif", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(ext, ".tiff", StringComparison.OrdinalIgnoreCase);
         }
 
         private void ReportError(string message)

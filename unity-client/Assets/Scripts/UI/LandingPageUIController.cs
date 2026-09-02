@@ -317,10 +317,14 @@ namespace DepthWizard.UI
                 if (_fadeCoroutine != null)
                     StopCoroutine(_fadeCoroutine);
                 _fadeCoroutine = StartCoroutine(FadeIn(_previewCanvasGroup, 0.3f));
-            }
 
-            if (_placeholderGroup != null)
-                _placeholderGroup.SetActive(false);
+                // Hide placeholder only when we have a real preview
+                if (_placeholderGroup != null)
+                    _placeholderGroup.SetActive(false);
+            }
+            // If texture is null (e.g. GeoTIFF), keep placeholder visible —
+            // the status text shows the filename so the user knows the file
+            // was accepted.
         }
 
         /// <summary>

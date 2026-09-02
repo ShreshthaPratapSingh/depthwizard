@@ -31,6 +31,30 @@ from .export import export_artifacts, resize_elevation01
 from .geospatial import apply_to_pipeline_metadata, resolve_elevation_mode
 from .postprocess import postprocess
 
+_TIFF_EXTS = {".tif", ".tiff"}
+
+
+def _read_rgb(image_path: str) -> np.ndarray:
+    """Read an image file as an HxWx3 uint8 RGB numpy array.
+
+    Uses rasterio for GeoTIFF (.tif/.tiff) because PIL/Pillow cannot reliably
+    handle tiled, compressed, or multi-band GeoTIFF files.  Falls back to PIL
+    for everything else (PNG, JPG, etc.).
+    """
+    ext = Path(image_path).suffix.lower()
+    if ext in _TIFF_EXTS:
+        import rasterio
+        with rasterio.open(image_path) as src:
+            # Read up to the first 3 bands; single-band → replicate to RGB
+            if src.count >= 3:
+                rgb = np.stack([src.read(i) for i in (1, 2, 3)], axis=-1)
+            else:
+                band = src.read(1)
+                rgb = np.stack([band, band, band], axis=-1)
+            return rgb.astype(np.uint8)
+    else:
+        with Image.open(image_path) as src:
+            return np.asarray(src.convert("RGB"))
 
 def process_image(image_path: str, output_dir: str,
                   target_res: int = DEFAULT_TARGET_RES,
@@ -55,8 +79,7 @@ def process_image(image_path: str, output_dir: str,
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    with Image.open(image_path) as src:
-        source_rgb = np.asarray(src.convert("RGB"))
+    source_rgb = _read_rgb(image_path)
 
     _stage("inferring", "running depth model")
     elevation01 = infer_depth(source_rgb)
