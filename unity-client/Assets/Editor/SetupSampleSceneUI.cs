@@ -1,8 +1,8 @@
 // =============================================================================
 // SetupSampleSceneUI.cs (Editor-only)
 //
-// Adds the ExportButtonHandler component to the main camera GameObject in
-// SampleScene, so the export HUD overlay appears when the scene loads.
+// Adds the ExportButtonHandler and ControlHintsOverlay components to the main
+// camera GameObject in SampleScene, so the HUD overlays appear at runtime.
 //
 // Menu: Tools > DepthWizard > Setup SampleScene UI
 // =============================================================================
@@ -26,28 +26,39 @@ public static class SetupSampleSceneUI
             return;
         }
 
-        // Check if already set up
-        var existing = cam.GetComponent<DepthWizard.UI.ExportButtonHandler>();
-        if (existing != null)
+        bool changed = false;
+
+        // --- ExportButtonHandler ---
+        if (cam.GetComponent<DepthWizard.UI.ExportButtonHandler>() == null)
+        {
+            Undo.AddComponent<DepthWizard.UI.ExportButtonHandler>(cam.gameObject);
+            changed = true;
+        }
+
+        // --- ControlHintsOverlay ---
+        if (cam.GetComponent<DepthWizard.UI.ControlHintsOverlay>() == null)
+        {
+            Undo.AddComponent<DepthWizard.UI.ControlHintsOverlay>(cam.gameObject);
+            changed = true;
+        }
+
+        if (!changed)
         {
             EditorUtility.DisplayDialog(
                 "Setup SampleScene UI",
-                "ExportButtonHandler is already attached to the Main Camera.",
+                "All HUD components are already attached.",
                 "OK");
             return;
         }
-
-        // Add the component
-        Undo.AddComponent<DepthWizard.UI.ExportButtonHandler>(cam.gameObject);
 
         EditorUtility.SetDirty(cam.gameObject);
         UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
             cam.gameObject.scene);
 
-        Debug.Log("[SetupSampleSceneUI] Added ExportButtonHandler to Main Camera. Save the scene.");
+        Debug.Log("[SetupSampleSceneUI] HUD components added to Main Camera. Save the scene.");
         EditorUtility.DisplayDialog(
             "Setup SampleScene UI",
-            "ExportButtonHandler added to Main Camera.\n\n" +
+            "ExportButtonHandler + ControlHintsOverlay added to Main Camera.\n\n" +
             "Remember to save the scene (Ctrl+S).",
             "OK");
     }
