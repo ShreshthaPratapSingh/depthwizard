@@ -107,6 +107,13 @@ def export_artifacts(
         confidence = np.full((target_res, target_res), 255, dtype=np.uint8)
     else:
         confidence = np.asarray(confidence, dtype=np.uint8)
+        if confidence.shape[:2] != (target_res, target_res):
+            # Nearest-neighbour so the discrete confidence levels (255/128/100)
+            # survive the resize to the heightmap grid.
+            confidence = cv2.resize(
+                confidence, (target_res, target_res),
+                interpolation=cv2.INTER_NEAREST,
+            )
     confidence_out = np.flipud(confidence)
     confidence_path = out / CONFIDENCE_NAME
     Image.fromarray(confidence_out, mode="L").save(confidence_path)

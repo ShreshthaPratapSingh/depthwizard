@@ -29,6 +29,7 @@ from .config import (
 )
 from .export import export_artifacts, resize_elevation01
 from .geospatial import apply_to_pipeline_metadata, resolve_elevation_mode
+from .postprocess import postprocess
 
 
 def process_image(image_path: str, output_dir: str,
@@ -61,6 +62,11 @@ def process_image(image_path: str, output_dir: str,
     elevation01 = infer_depth(source_rgb)
     inference_ms = get_last_inference_ms()
 
+    # Smooth ridgelines, flatten water, and build the confidence mask before
+    # anything is resized or encoded. Operates on the raw native-res elevation.
+    cleaned = postprocess(elevation01, source_rgb)
+    elevation01 = cleaned["elevation"]
+
     # Resize to the output grid here so calibration sees exactly the same array
     # export_artifacts encodes; passing elev_resized (already target_res square)
     # makes export's internal resize a 1:1 no-op, so there is no double resample.
@@ -81,6 +87,7 @@ def process_image(image_path: str, output_dir: str,
     _stage("exporting", "writing artifacts")
     artifacts = export_artifacts(
         elev_resized, source_rgb, target_res, TEXTURE_SIZE, out,
+        confidence=cleaned["confidence"],
         heightmap_u16=mode["heightmap_u16"],
     )
 
