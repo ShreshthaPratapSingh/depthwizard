@@ -42,6 +42,11 @@ namespace DepthWizard.Terrain
         // At runtime we load it via Resources or find it on the existing terrain.
         private const string TERRAIN_SHADER_NAME = "Universal Render Pipeline/Terrain/Lit";
 
+        // Number of 3×3 box-blur smoothing passes applied to the heightmap
+        // before SetHeights(). 0 = no smoothing, 1 = mild (recommended),
+        // 2+ = progressively softer. Higher values flatten real detail.
+        private const int SMOOTH_PASSES = 1;
+
         /// <summary>
         /// Build (or update) a Terrain from the backend's pipeline output.
         /// </summary>
@@ -71,7 +76,12 @@ namespace DepthWizard.Terrain
             float[,] heights = Decode16BitHeightmap(heightmapPngBytes, expectedResolution);
             int resolution = heights.GetLength(0);
 
-            Debug.Log($"[RuntimeTerrainBuilder] Heightmap decoded: {resolution}×{resolution}");
+            // Optional smoothing pass — softens raw pixel-noise spikes into
+            // more natural-looking terrain without flattening real features.
+            // Increase SMOOTH_PASSES for a softer result (0 = disabled).
+            heights = SmoothHeightmap(heights, SMOOTH_PASSES);
+
+            Debug.Log($"[RuntimeTerrainBuilder] Heightmap decoded: {resolution}×{resolution} (smoothed {SMOOTH_PASSES}x)");
 
             // -----------------------------------------------------------------
             // Step 2: Decode the texture PNG into a Texture2D
@@ -407,6 +417,48 @@ namespace DepthWizard.Terrain
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Apply one or more passes of a 3×3 box-blur to smooth the heightmap.
+        /// Each pass averages every cell with its 8 neighbours, which removes
+        /// single-pixel noise spikes while preserving larger elevation features.
+        /// </summary>
+        private static float[,] SmoothHeightmap(float[,] heights, int passes)
+        {
+            if (passes <= 0) return heights;
+
+            int h = heights.GetLength(0);
+            int w = heights.GetLength(1);
+
+            for (int p = 0; p < passes; p++)
+            {
+                float[,] smoothed = new float[h, w];
+                for (int y = 0; y < h; y++)
+                {
+                    for (int x = 0; x < w; x++)
+                    {
+                        float sum = 0f;
+                        int count = 0;
+                        for (int dy = -1; dy <= 1; dy++)
+                        {
+                            int ny = y + dy;
+                            if (ny < 0 || ny >= h) continue;
+                            for (int dx = -1; dx <= 1; dx++)
+                            {
+                                int nx = x + dx;
+                                if (nx < 0 || nx >= w) continue;
+                                sum += heights[ny, nx];
+                                count++;
+                            }
+                        }
+                        smoothed[y, x] = sum / count;
+                    }
+                }
+                heights = smoothed;
+            }
+
+            return heights;
         }
     }
 }
