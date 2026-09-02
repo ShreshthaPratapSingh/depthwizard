@@ -254,17 +254,36 @@ namespace DepthWizard.UI
 
             // Start the async upload + processing pipeline
             string imagePath = session.FilePath;
-            if (string.IsNullOrEmpty(imagePath))
+            if (string.IsNullOrEmpty(imagePath) || !System.IO.File.Exists(imagePath))
             {
                 // If FilePath is not available (e.g. drag-and-drop loaded bytes
                 // directly), save to a temp file for the backend upload.
+                if (session.ImageBytes == null || session.ImageBytes.Length == 0)
+                {
+                    ReportError("Selected image data is missing. Please re-select the image and try again.");
+                    yield break;
+                }
+
                 imagePath = System.IO.Path.Combine(
                     Application.temporaryCachePath, "depthwizard_upload.png");
-                System.IO.File.WriteAllBytes(imagePath, session.ImageBytes);
+
+                try
+                {
+                    System.IO.File.WriteAllBytes(imagePath, session.ImageBytes);
+                }
+                catch (Exception ex)
+                {
+                    ReportError($"Failed to prepare image upload file: {ex.Message}");
+                    yield break;
+                }
             }
 
             _backendClient.UploadAndGenerateAsync(imagePath);
-
+            if (!_backendClient.IsBusy)
+            {
+                ReportError("Failed to start backend processing. Please verify the backend is running and try again.");
+                yield break;
+            }
             // Wait for backend to finish (IsBusy becomes false)
             // The OnProgressUpdate events will drive stage transitions
             // for stages 0-2 (backend-side stages).
