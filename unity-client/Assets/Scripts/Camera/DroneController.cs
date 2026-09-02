@@ -30,6 +30,7 @@
 // =============================================================================
 
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using DepthWizard.Input;
 
@@ -507,12 +508,16 @@ namespace DepthWizard.Camera
         private void HandleCursorToggle()
         {
             // Escape releases cursor; left-click re-locks it
+            // (but not when clicking on UI elements — lets buttons work)
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
                 SetCursorLocked(false);
             }
             else if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && !_cursorLocked)
             {
+                // Don't re-lock if the click landed on a UI element
+                if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+                    return;
                 SetCursorLocked(true);
             }
         }
