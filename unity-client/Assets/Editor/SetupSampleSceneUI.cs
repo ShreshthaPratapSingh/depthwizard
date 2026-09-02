@@ -42,6 +42,13 @@ public static class SetupSampleSceneUI
             changed = true;
         }
 
+        // --- CameraSpawnPositioner ---
+        if (cam.GetComponent<DepthWizard.Camera.CameraSpawnPositioner>() == null)
+        {
+            Undo.AddComponent<DepthWizard.Camera.CameraSpawnPositioner>(cam.gameObject);
+            changed = true;
+        }
+
         if (!changed)
         {
             EditorUtility.DisplayDialog(
@@ -58,8 +65,8 @@ public static class SetupSampleSceneUI
         Debug.Log("[SetupSampleSceneUI] HUD components added to Main Camera. Save the scene.");
         EditorUtility.DisplayDialog(
             "Setup SampleScene UI",
-            "ExportButtonHandler + ControlHintsOverlay added to Main Camera.\n\n" +
-            "Remember to save the scene (Ctrl+S).",
+            "ExportButtonHandler + ControlHintsOverlay + CameraSpawnPositioner\n" +
+            "added to Main Camera.\n\nRemember to save the scene (Ctrl+S).",
             "OK");
     }
 }
