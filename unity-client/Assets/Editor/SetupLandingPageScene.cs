@@ -89,6 +89,9 @@ namespace DepthWizard.Editor
             var status    = CreateStatusText(center.transform);
             CreateVersionText(canvas.transform);
 
+            // Processing overlay (starts inactive — shown by ProcessingController)
+            CreateProcessingOverlay(canvas.transform);
+
             var eventSys  = CreateEventSystem();
 
             // ----- Create ImageSessionManager in scene -----
@@ -99,6 +102,8 @@ namespace DepthWizard.Editor
             // ----- Attach controllers -----
             canvas.AddComponent<ImagePicker>();
             canvas.AddComponent<LandingPageUIController>();
+            canvas.AddComponent<ProcessingPanelUI>();
+            canvas.AddComponent<ProcessingController>();
 
             // Drop zone handler
             dropZone.AddComponent<DropZoneHandler>();
@@ -127,8 +132,9 @@ namespace DepthWizard.Editor
 
             Debug.Log(
                 "[SetupLandingPageScene] ✓ Landing page rebuilt successfully.\n" +
-                "  Hierarchy: Canvas → Background, CenterPanel → Title, DropZone, Buttons, Status\n" +
-                "  Controllers: LandingPageUIController, ImagePicker, DropZoneHandler\n" +
+                "  Hierarchy: Canvas → Background, CenterPanel, ProcessingOverlay\n" +
+                "  Controllers: LandingPageUIController, ImagePicker, DropZoneHandler,\n" +
+                "               ProcessingPanelUI, ProcessingController\n" +
                 "  Enter Play mode to test.");
         }
 
@@ -444,6 +450,383 @@ namespace DepthWizard.Editor
             tmp.raycastTarget = false;
 
             return go;
+        }
+
+        // =====================================================================
+        // Processing overlay
+        // =====================================================================
+
+        /// <summary>
+        /// Build the full processing overlay hierarchy.
+        /// This is shown by ProcessingController when the user clicks Generate.
+        ///
+        /// Hierarchy:
+        ///   ProcessingOverlay (CanvasGroup, starts inactive)
+        ///   ├── DimBackground (full-screen semi-transparent black)
+        ///   └── ProcessingPanel (centered 600×560 rounded rect)
+        ///       ├── PanelTitle ("Processing")
+        ///       ├── SpinnerIcon (rotating ring)
+        ///       ├── ProgressBarBg + ProgressBarFill
+        ///       ├── ProgressPercentText
+        ///       ├── StageList (6 rows: StageRow_0..5)
+        ///       │   └── each: StageIcon + StageLabel
+        ///       ├── ProcessingStatusText
+        ///       ├── ElapsedTimeText
+        ///       └── ErrorButtonRow (RetryButton + CancelButton, hidden)
+        /// </summary>
+        static GameObject CreateProcessingOverlay(Transform parent)
+        {
+            // --- Root overlay (full-screen, blocks raycasts) ---
+            var overlay = CreateUIObject("ProcessingOverlay", parent);
+            StretchFull(overlay);
+            var overlayCg = overlay.AddComponent<CanvasGroup>();
+            overlayCg.alpha = 0f;
+            overlayCg.blocksRaycasts = true;
+            overlayCg.interactable = true;
+
+            // --- Dim background ---
+            var dimBg = CreateUIObject("DimBackground", overlay.transform);
+            StretchFull(dimBg);
+            var dimImg = dimBg.AddComponent<Image>();
+            dimImg.color = new Color(0f, 0f, 0f, 0.6f);
+            dimImg.raycastTarget = true; // blocks clicks to landing page
+
+            // --- Modal panel ---
+            var panel = CreateUIObject("ProcessingPanel", overlay.transform);
+            var panelRt = panel.GetComponent<RectTransform>();
+            panelRt.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRt.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRt.pivot = new Vector2(0.5f, 0.5f);
+            panelRt.sizeDelta = new Vector2(600, 560);
+
+            var panelImg = panel.AddComponent<Image>();
+            panelImg.color = HexColor("#141E30");
+            panelImg.sprite = CreateRoundedRectSprite(20);
+            panelImg.type = Image.Type.Sliced;
+            panelImg.raycastTarget = true;
+
+            // Panel border (slightly larger, behind content)
+            var panelBorder = CreateUIObject("PanelBorder", panel.transform);
+            StretchFull(panelBorder, -2); // 2px outset for border glow
+            var borderImg = panelBorder.AddComponent<Image>();
+            borderImg.color = new Color(0f, 0.898f, 1f, 0.15f); // faint cyan border
+            borderImg.sprite = CreateRoundedRectSprite(22);
+            borderImg.type = Image.Type.Sliced;
+            borderImg.raycastTarget = false;
+            panelBorder.transform.SetAsFirstSibling(); // behind content
+
+            // Panel layout
+            var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
+            panelLayout.childAlignment = TextAnchor.UpperCenter;
+            panelLayout.spacing = 10;
+            panelLayout.padding = new RectOffset(30, 30, 28, 24);
+            panelLayout.childControlWidth = true;
+            panelLayout.childControlHeight = false;
+            panelLayout.childForceExpandWidth = true;
+            panelLayout.childForceExpandHeight = false;
+
+            // --- Panel title ---
+            var titleGo = CreateUIObject("PanelTitle", panel.transform);
+            var titleRt = titleGo.GetComponent<RectTransform>();
+            titleRt.sizeDelta = new Vector2(540, 40);
+            var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
+            titleTmp.text = "Processing";
+            titleTmp.fontSize = 28;
+            titleTmp.fontStyle = FontStyles.Bold;
+            titleTmp.color = COL_ACCENT;
+            titleTmp.alignment = TextAlignmentOptions.Center;
+            titleTmp.enableWordWrapping = false;
+            titleTmp.raycastTarget = false;
+            titleTmp.characterSpacing = 3f;
+            var titleLe = titleGo.AddComponent<LayoutElement>();
+            titleLe.preferredHeight = 40;
+
+            // --- Spinner icon ---
+            var spinnerGo = CreateUIObject("SpinnerIcon", panel.transform);
+            var spinnerRt = spinnerGo.GetComponent<RectTransform>();
+            spinnerRt.sizeDelta = new Vector2(48, 48);
+            var spinnerImg = spinnerGo.AddComponent<Image>();
+            spinnerImg.sprite = CreateSpinnerSprite();
+            spinnerImg.color = COL_ACCENT;
+            spinnerImg.raycastTarget = false;
+            var spinnerLe = spinnerGo.AddComponent<LayoutElement>();
+            spinnerLe.preferredWidth = 48;
+            spinnerLe.preferredHeight = 48;
+
+            // --- Progress bar ---
+            var barBg = CreateUIObject("ProgressBarBg", panel.transform);
+            var barBgRt = barBg.GetComponent<RectTransform>();
+            barBgRt.sizeDelta = new Vector2(540, 12);
+            var barBgImg = barBg.AddComponent<Image>();
+            barBgImg.color = HexColor("#1A2744");
+            barBgImg.sprite = CreateRoundedRectSprite(6);
+            barBgImg.type = Image.Type.Sliced;
+            barBgImg.raycastTarget = false;
+            var barBgLe = barBg.AddComponent<LayoutElement>();
+            barBgLe.preferredHeight = 12;
+
+            // Fill bar (child of bg, uses Image.fillAmount for smooth fill)
+            var barFill = CreateUIObject("ProgressBarFill", barBg.transform);
+            StretchFull(barFill);
+            var barFillImg = barFill.AddComponent<Image>();
+            barFillImg.color = COL_ACCENT;
+            barFillImg.sprite = CreateRoundedRectSprite(6);
+            barFillImg.type = Image.Type.Filled;
+            barFillImg.fillMethod = Image.FillMethod.Horizontal;
+            barFillImg.fillOrigin = 0; // left to right
+            barFillImg.fillAmount = 0f;
+            barFillImg.raycastTarget = false;
+
+            // --- Percentage text ---
+            var percentGo = CreateUIObject("ProgressPercentText", panel.transform);
+            var percentRt = percentGo.GetComponent<RectTransform>();
+            percentRt.sizeDelta = new Vector2(540, 24);
+            var percentTmp = percentGo.AddComponent<TextMeshProUGUI>();
+            percentTmp.text = "0%";
+            percentTmp.fontSize = 16;
+            percentTmp.fontStyle = FontStyles.Bold;
+            percentTmp.color = COL_ACCENT;
+            percentTmp.alignment = TextAlignmentOptions.Center;
+            percentTmp.raycastTarget = false;
+            var percentLe = percentGo.AddComponent<LayoutElement>();
+            percentLe.preferredHeight = 24;
+
+            // --- Stage list ---
+            var stageList = CreateUIObject("StageList", panel.transform);
+            var stageListRt = stageList.GetComponent<RectTransform>();
+            stageListRt.sizeDelta = new Vector2(540, 180);
+            var stageListLayout = stageList.AddComponent<VerticalLayoutGroup>();
+            stageListLayout.childAlignment = TextAnchor.UpperLeft;
+            stageListLayout.spacing = 4;
+            stageListLayout.padding = new RectOffset(40, 20, 4, 4);
+            stageListLayout.childControlWidth = true;
+            stageListLayout.childControlHeight = false;
+            stageListLayout.childForceExpandWidth = true;
+            stageListLayout.childForceExpandHeight = false;
+            var stageListLe = stageList.AddComponent<LayoutElement>();
+            stageListLe.preferredHeight = 180;
+
+            // Stage labels for the 6 pipeline stages
+            string[] stageLabels = new string[]
+            {
+                "Uploading image",
+                "Running depth inference",
+                "Geospatial calibration",
+                "Generating terrain mesh",
+                "Applying textures",
+                "Finalizing scene"
+            };
+
+            for (int i = 0; i < stageLabels.Length; i++)
+            {
+                CreateStageRow(stageList.transform, i, stageLabels[i]);
+            }
+
+            // --- Status text ---
+            var statusGo = CreateUIObject("ProcessingStatusText", panel.transform);
+            var statusRt = statusGo.GetComponent<RectTransform>();
+            statusRt.sizeDelta = new Vector2(540, 24);
+            var statusTmp = statusGo.AddComponent<TextMeshProUGUI>();
+            statusTmp.text = "Preparing...";
+            statusTmp.fontSize = 15;
+            statusTmp.fontStyle = FontStyles.Italic;
+            statusTmp.color = new Color(1f, 1f, 1f, 0.7f);
+            statusTmp.alignment = TextAlignmentOptions.Center;
+            statusTmp.enableWordWrapping = true;
+            statusTmp.raycastTarget = false;
+            var statusLe = statusGo.AddComponent<LayoutElement>();
+            statusLe.preferredHeight = 24;
+
+            // --- Elapsed time ---
+            var elapsedGo = CreateUIObject("ElapsedTimeText", panel.transform);
+            var elapsedRt = elapsedGo.GetComponent<RectTransform>();
+            elapsedRt.sizeDelta = new Vector2(540, 20);
+            var elapsedTmp = elapsedGo.AddComponent<TextMeshProUGUI>();
+            elapsedTmp.text = "00:00";
+            elapsedTmp.fontSize = 13;
+            elapsedTmp.color = new Color(1f, 1f, 1f, 0.35f);
+            elapsedTmp.alignment = TextAlignmentOptions.Center;
+            elapsedTmp.raycastTarget = false;
+            var elapsedLe = elapsedGo.AddComponent<LayoutElement>();
+            elapsedLe.preferredHeight = 20;
+
+            // --- Error buttons (hidden by default) ---
+            var errorRow = CreateUIObject("ErrorButtonRow", panel.transform);
+            var errorRowRt = errorRow.GetComponent<RectTransform>();
+            errorRowRt.sizeDelta = new Vector2(540, 44);
+            var errorRowLayout = errorRow.AddComponent<HorizontalLayoutGroup>();
+            errorRowLayout.childAlignment = TextAnchor.MiddleCenter;
+            errorRowLayout.spacing = 16;
+            errorRowLayout.padding = new RectOffset(100, 100, 0, 0);
+            errorRowLayout.childControlWidth = true;
+            errorRowLayout.childControlHeight = true;
+            errorRowLayout.childForceExpandWidth = true;
+            errorRowLayout.childForceExpandHeight = true;
+            var errorRowLe = errorRow.AddComponent<LayoutElement>();
+            errorRowLe.preferredHeight = 44;
+
+            // Retry button
+            CreateProcessingButton(
+                errorRow.transform, "RetryButton", "Retry",
+                COL_ACCENT, Color.white);
+
+            // Cancel button
+            CreateProcessingButton(
+                errorRow.transform, "CancelButton", "Cancel",
+                HexColor("#3A3A4A"), new Color(1f, 1f, 1f, 0.7f));
+
+            errorRow.SetActive(false);
+
+            // Start the overlay inactive
+            overlay.SetActive(false);
+
+            return overlay;
+        }
+
+        /// <summary>
+        /// Create a single stage row: icon (TMP unicode) + label text.
+        /// Named "StageRow_0", "StageRow_1", etc. for runtime lookup.
+        /// </summary>
+        static GameObject CreateStageRow(Transform parent, int index, string label)
+        {
+            var row = CreateUIObject($"StageRow_{index}", parent);
+            var rowRt = row.GetComponent<RectTransform>();
+            rowRt.sizeDelta = new Vector2(460, 26);
+
+            var rowLayout = row.AddComponent<HorizontalLayoutGroup>();
+            rowLayout.childAlignment = TextAnchor.MiddleLeft;
+            rowLayout.spacing = 10;
+            rowLayout.childControlWidth = false;
+            rowLayout.childControlHeight = true;
+            rowLayout.childForceExpandWidth = false;
+            rowLayout.childForceExpandHeight = true;
+
+            var rowLe = row.AddComponent<LayoutElement>();
+            rowLe.preferredHeight = 26;
+
+            // Stage icon (unicode circle)
+            var iconGo = CreateUIObject("StageIcon", row.transform);
+            var iconRt = iconGo.GetComponent<RectTransform>();
+            iconRt.sizeDelta = new Vector2(20, 26);
+            var iconTmp = iconGo.AddComponent<TextMeshProUGUI>();
+            iconTmp.text = "\u25CB"; // hollow circle (pending)
+            iconTmp.fontSize = 16;
+            iconTmp.color = new Color(1f, 1f, 1f, 0.25f); // dim
+            iconTmp.alignment = TextAlignmentOptions.Center;
+            iconTmp.raycastTarget = false;
+            var iconLe = iconGo.AddComponent<LayoutElement>();
+            iconLe.preferredWidth = 20;
+
+            // Stage label
+            var labelGo = CreateUIObject("StageLabel", row.transform);
+            var labelRt = labelGo.GetComponent<RectTransform>();
+            labelRt.sizeDelta = new Vector2(400, 26);
+            var labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
+            labelTmp.text = label;
+            labelTmp.fontSize = 15;
+            labelTmp.color = new Color(1f, 1f, 1f, 0.25f); // dim (pending)
+            labelTmp.alignment = TextAlignmentOptions.Left;
+            labelTmp.enableWordWrapping = false;
+            labelTmp.raycastTarget = false;
+            var labelLe = labelGo.AddComponent<LayoutElement>();
+            labelLe.preferredWidth = 400;
+
+            return row;
+        }
+
+        /// <summary>
+        /// Create a button for the error state (Retry / Cancel).
+        /// </summary>
+        static GameObject CreateProcessingButton(
+            Transform parent, string name, string label,
+            Color bgColor, Color textColor)
+        {
+            var go = CreateUIObject(name, parent);
+
+            var img = go.AddComponent<Image>();
+            img.color = bgColor;
+            img.sprite = CreateRoundedRectSprite(10);
+            img.type = Image.Type.Sliced;
+
+            var btn = go.AddComponent<Button>();
+            var colors = btn.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f, 1f);
+            colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
+            colors.fadeDuration = 0.1f;
+            btn.colors = colors;
+
+            var textGo = CreateUIObject("Label", go.transform);
+            StretchFull(textGo);
+            var tmp = textGo.AddComponent<TextMeshProUGUI>();
+            tmp.text = label;
+            tmp.fontSize = 16;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.color = textColor;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.enableWordWrapping = false;
+            tmp.raycastTarget = false;
+
+            return go;
+        }
+
+        /// <summary>
+        /// Create a simple procedural spinner sprite: a ring with a gap,
+        /// giving a topographic/radar feel when rotated.
+        /// </summary>
+        static Sprite CreateSpinnerSprite()
+        {
+            int size = 64;
+            int center = size / 2;
+            float outerR = 28f;
+            float innerR = 22f;
+            float gapAngleDeg = 60f; // 60-degree gap in the ring
+
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+
+            var pixels = new Color[size * size];
+            for (int i = 0; i < pixels.Length; i++)
+                pixels[i] = Color.clear;
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x - center;
+                    float dy = y - center;
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+                    // Inside the ring?
+                    if (dist < innerR - 0.5f || dist > outerR + 0.5f)
+                        continue;
+
+                    // Check angle for gap (top of ring)
+                    float angle = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg;
+                    if (angle < 0) angle += 360f;
+                    // Gap centered at top (90 degrees)
+                    float gapStart = 90f - gapAngleDeg / 2f;
+                    float gapEnd = 90f + gapAngleDeg / 2f;
+                    if (angle >= gapStart && angle <= gapEnd)
+                        continue;
+
+                    // Anti-aliased edges
+                    float outerAlpha = Mathf.Clamp01(outerR - dist + 0.5f);
+                    float innerAlpha = Mathf.Clamp01(dist - innerR + 0.5f);
+                    float alpha = Mathf.Min(outerAlpha, innerAlpha);
+
+                    pixels[y * size + x] = new Color(1, 1, 1, alpha);
+                }
+            }
+
+            tex.SetPixels(pixels);
+            tex.Apply();
+
+            return Sprite.Create(
+                tex,
+                new Rect(0, 0, size, size),
+                new Vector2(0.5f, 0.5f),
+                100f);
         }
 
         // =====================================================================

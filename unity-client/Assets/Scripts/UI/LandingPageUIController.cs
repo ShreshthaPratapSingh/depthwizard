@@ -247,13 +247,22 @@ namespace DepthWizard.UI
                 return;
             }
 
-            Debug.Log("[LandingPageUI] Transitioning to terrain generation...");
-            SetStatus("Loading terrain scene...", COLOR_STATUS_DEFAULT);
+            Debug.Log("[LandingPageUI] Starting processing pipeline...");
+            SetStatus("Starting processing...", COLOR_STATUS_DEFAULT);
 
             // Disable the button to prevent double-clicks
             SetGenerateButtonEnabled(false);
 
-            SceneManager.LoadScene(TARGET_SCENE);
+            // Find ProcessingController on this Canvas (attached by the
+            // editor setup script). If missing, create one dynamically.
+            var controller = GetComponent<ProcessingController>();
+            if (controller == null)
+                controller = gameObject.AddComponent<ProcessingController>();
+
+            // The processing overlay will appear on top of the landing page.
+            // Scene transition happens inside ProcessingController after
+            // the full pipeline completes.
+            controller.StartPipeline();
         }
 
         private void OnImageLoadSuccess(string message)
