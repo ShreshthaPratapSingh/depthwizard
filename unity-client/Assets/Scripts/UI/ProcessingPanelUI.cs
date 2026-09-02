@@ -123,6 +123,9 @@ namespace DepthWizard.UI
         // Spinner rotation speed (degrees per second)
         private const float SPINNER_SPEED = 180f;
 
+        // Accumulated spinner angle (avoids Rotate() drift on RectTransforms)
+        private float _spinnerAngle = 0f;
+
         // Progress bar smooth lerp speed
         private const float PROGRESS_LERP_SPEED = 3f;
 
@@ -151,9 +154,12 @@ namespace DepthWizard.UI
         {
             if (!_isVisible) return;
 
-            // Rotate spinner
+            // Rotate spinner (direct quaternion, no drift)
             if (_spinner != null)
-                _spinner.Rotate(0f, 0f, -SPINNER_SPEED * Time.deltaTime);
+            {
+                _spinnerAngle = (_spinnerAngle - SPINNER_SPEED * Time.deltaTime) % 360f;
+                _spinner.localRotation = Quaternion.Euler(0f, 0f, _spinnerAngle);
+            }
 
             // Smooth progress bar
             if (Mathf.Abs(_displayedProgress - _targetProgress) > 0.001f)
@@ -347,7 +353,18 @@ namespace DepthWizard.UI
 
             var spinnerGo = FindChild(NAME_SPINNER);
             if (spinnerGo != null)
+            {
                 _spinner = spinnerGo.transform;
+
+                // Replace the scene's arrow sprite with a proper circular arc
+                var spinnerImg = spinnerGo.GetComponent<Image>();
+                if (spinnerImg != null)
+                {
+                    spinnerImg.sprite = CreateSpinnerArcSprite(64);
+                    spinnerImg.type = Image.Type.Simple;
+                    spinnerImg.preserveAspect = true;
+                }
+            }
 
             var fillGo = FindChild(NAME_PROGRESS_FILL);
             if (fillGo != null)
@@ -439,6 +456,7 @@ namespace DepthWizard.UI
             if (_spinner != null)
             {
                 _spinner.gameObject.SetActive(true);
+                _spinnerAngle = 0f;
                 _spinner.localRotation = Quaternion.identity;
             }
 
@@ -564,6 +582,83 @@ namespace DepthWizard.UI
                     return result;
             }
             return null;
+        }
+        // ---------------------------------------------------------------------
+        // Procedural spinner sprite
+        // ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Generate a circular arc sprite (3/4 ring with tapered tail).
+        /// Looks correct when rotating around its center.
+        /// </summary>
+        private static Sprite CreateSpinnerArcSprite(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+            tex.wrapMode = TextureWrapMode.Clamp;
+
+            float center = size / 2f;
+            float outerRadius = size / 2f - 1f;
+            float innerRadius = outerRadius - Mathf.Max(size / 8f, 3f);
+
+            // Arc covers 270 degrees (3/4 of a circle), from 45° to 315°
+            float arcStartDeg = 45f;
+            float arcEndDeg = 315f;
+            float fadeZoneDeg = 40f; // tail fade-out region
+
+            var pixels = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x - center;
+                    float dy = y - center;
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+                    // Ring mask (anti-aliased)
+                    float outerAlpha = Mathf.Clamp01(outerRadius - dist + 0.5f);
+                    float innerAlpha = Mathf.Clamp01(dist - innerRadius + 0.5f);
+                    float ringAlpha = outerAlpha * innerAlpha;
+
+                    if (ringAlpha <= 0f)
+                    {
+                        pixels[y * size + x] = Color.clear;
+                        continue;
+                    }
+
+                    // Angle in degrees (0 = right, CCW positive)
+                    float angle = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg;
+                    if (angle < 0f) angle += 360f;
+
+                    // Arc mask
+                    float arcAlpha;
+                    if (angle >= arcStartDeg && angle <= arcEndDeg)
+                    {
+                        // Inside the arc — check for tail fade
+                        float distFromEnd = arcEndDeg - angle;
+                        if (distFromEnd < fadeZoneDeg)
+                            arcAlpha = distFromEnd / fadeZoneDeg;
+                        else
+                            arcAlpha = 1f;
+                    }
+                    else
+                    {
+                        arcAlpha = 0f;
+                    }
+
+                    float alpha = ringAlpha * arcAlpha;
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+                }
+            }
+
+            tex.SetPixels(pixels);
+            tex.Apply();
+
+            return Sprite.Create(
+                tex,
+                new Rect(0, 0, size, size),
+                new Vector2(0.5f, 0.5f),
+                100f);
         }
     }
 }
