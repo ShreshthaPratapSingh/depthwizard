@@ -9,6 +9,12 @@ DEFAULT_TARGET_RES = 1025
 # Texture is always resized to this square RGB size.
 TEXTURE_SIZE = 1024
 
+# Upper bound on the input image size, as a total pixel count. Inputs larger
+# than this are auto-downscaled (aspect ratio preserved) before inference so a
+# single huge upload cannot blow up memory/time — process_image never rejects an
+# oversized-but-valid image, it just shrinks it and appends a warning. 4096^2.
+MAX_INPUT_PIXELS = 4096 * 4096
+
 # Default model id for accuracy-log rows. process_image metadata uses
 # depth_pipeline.inference.MODEL_ID when infer_depth runs.
 MODEL_ID = "depth-anything-v2-small"
