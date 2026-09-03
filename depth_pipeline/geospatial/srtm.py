@@ -19,7 +19,10 @@ from ..config import DEFAULT_SRTM_TILE_DIR, SRTM_ALIGNED_NAME
 REGIONS_NAME = "regions.json"
 # SRTM void / ocean sentinel used by most GL1 products.
 _SRTM_NODATA = -32768.0
-_COVER_EPS = 1e-4  # degrees (or CRS units) of slack when matching tiles
+# ~100 m at the equator. Reprojected GeoTIFF bounds often sit a few
+# ten-thousandths of a degree outside the catalog tile (Chennai UTM→WGS84
+# overflow was ~0.0003°). 1e-4 was too tight for that rounding.
+_COVER_EPS = 0.001
 
 
 class SrtmAlignResult(TypedDict):
@@ -149,7 +152,12 @@ def find_covering_tile(
     dst_crs: str = "EPSG:4326",
     tile_dir: str | Path | None = None,
 ) -> dict[str, Any] | None:
-    """Return the smallest local tile that fully covers ``bbox``, or None."""
+    """Return the smallest local tile that fully covers ``bbox``, or None.
+
+    ``bbox`` is in ``dst_crs``. Comparison is in WGS84 with ``_COVER_EPS``
+    slack so reprojected bounds that sit a fraction of a pixel outside the
+    catalog tile still match.
+    """
     directory = srtm_tile_dir(tile_dir)
     query = _query_bbox_wgs84(bbox, dst_crs)
     if query is None:
