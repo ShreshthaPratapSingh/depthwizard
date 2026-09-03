@@ -211,7 +211,7 @@ namespace DepthWizard.UI
             }
 
             var session = ImageSessionManager.Instance;
-            if (session == null || !session.HasImage)
+            if (session == null || !session.HasSource)
             {
                 Debug.LogError("[ProcessingController] No image in session.");
                 return;
@@ -252,33 +252,38 @@ namespace DepthWizard.UI
             // Subscribe to backend progress updates
             _backendClient.OnProgressUpdate += HandleBackendProgress;
 
-            // Start the async upload + processing pipeline
-            string imagePath = session.FilePath;
-            if (string.IsNullOrEmpty(imagePath) || !System.IO.File.Exists(imagePath))
+            if (!string.IsNullOrEmpty(session.SampleId))
             {
-                // If FilePath is not available (e.g. drag-and-drop loaded bytes
-                // directly), save to a temp file for the backend upload.
-                if (session.ImageBytes == null || session.ImageBytes.Length == 0)
+                _backendClient.ProcessSample(session.SampleId);
+            }
+            else
+            {
+                string imagePath = session.FilePath;
+                if (string.IsNullOrEmpty(imagePath) || !System.IO.File.Exists(imagePath))
                 {
-                    ReportError("Selected image data is missing. Please re-select the image and try again.");
-                    yield break;
+                    if (session.ImageBytes == null || session.ImageBytes.Length == 0)
+                    {
+                        ReportError("Selected image data is missing. Please re-select the image and try again.");
+                        yield break;
+                    }
+
+                    imagePath = System.IO.Path.Combine(
+                        Application.temporaryCachePath, "depthwizard_upload.png");
+
+                    try
+                    {
+                        System.IO.File.WriteAllBytes(imagePath, session.ImageBytes);
+                    }
+                    catch (Exception ex)
+                    {
+                        ReportError($"Failed to prepare image upload file: {ex.Message}");
+                        yield break;
+                    }
                 }
 
-                imagePath = System.IO.Path.Combine(
-                    Application.temporaryCachePath, "depthwizard_upload.png");
-
-                try
-                {
-                    System.IO.File.WriteAllBytes(imagePath, session.ImageBytes);
-                }
-                catch (Exception ex)
-                {
-                    ReportError($"Failed to prepare image upload file: {ex.Message}");
-                    yield break;
-                }
+                _backendClient.UploadAndGenerateAsync(imagePath);
             }
 
-            _backendClient.UploadAndGenerateAsync(imagePath);
             if (!_backendClient.IsBusy)
             {
                 ReportError("Failed to start backend processing. Please verify the backend is running and try again.");

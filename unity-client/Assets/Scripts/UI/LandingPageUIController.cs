@@ -101,6 +101,17 @@ namespace DepthWizard.UI
             SetInitialState();
         }
 
+        private void Start()
+        {
+            var catalog = gameObject.GetComponent<SampleCatalogUI>();
+            if (catalog == null)
+                catalog = gameObject.AddComponent<SampleCatalogUI>();
+            catalog.Bind(transform, "http://localhost:8000", msg =>
+            {
+                SetStatus(msg, COLOR_STATUS_DEFAULT);
+            });
+        }
+
         private void OnDestroy()
         {
             UnwireEvents();
@@ -212,13 +223,23 @@ namespace DepthWizard.UI
         private void SetInitialState()
         {
             var session = ImageSessionManager.Instance;
-            if (session != null && session.HasImage)
+            if (session != null && session.HasSource)
             {
                 // Restore previous selection
-                ShowPreview(session.PreviewTexture);
-                SetStatus(
-                    $"Image loaded: {session.Width}×{session.Height}",
-                    COLOR_STATUS_SUCCESS);
+                if (session.HasImage)
+                {
+                    ShowPreview(session.PreviewTexture);
+                    SetStatus(
+                        $"Image loaded: {session.Width}×{session.Height}",
+                        COLOR_STATUS_SUCCESS);
+                }
+                else
+                {
+                    ShowPlaceholder();
+                    SetStatus(
+                        "Sample selected: " + (session.SampleName ?? session.SampleId),
+                        COLOR_STATUS_SUCCESS);
+                }
                 SetGenerateButtonEnabled(true);
             }
             else
@@ -241,7 +262,7 @@ namespace DepthWizard.UI
 
         private void OnGenerateButtonClicked()
         {
-            if (!ImageSessionManager.Instance.HasImage)
+            if (!ImageSessionManager.Instance.HasSource)
             {
                 SetStatus("No image selected.", COLOR_STATUS_ERROR);
                 return;
@@ -280,8 +301,16 @@ namespace DepthWizard.UI
 
         private void OnSessionImageChanged(Texture2D texture)
         {
-            ShowPreview(texture);
+            if (texture != null)
+                ShowPreview(texture);
+            else
+                ShowPlaceholder();
             SetGenerateButtonEnabled(true);
+            var session = ImageSessionManager.Instance;
+            if (session != null && !string.IsNullOrEmpty(session.SampleName))
+            {
+                SetStatus("Sample selected: " + session.SampleName, COLOR_STATUS_SUCCESS);
+            }
         }
 
         private void OnSessionCleared()

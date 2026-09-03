@@ -42,6 +42,8 @@ Synchronous depth pipeline. Blocks until inference, calibration, and export comp
   "min_elev_m": 450.2,
   "max_elev_m": 892.7,
   "r_squared": 0.943,
+  "rmse_m": 12.4,
+  "mae_m": 9.1,
   "sample_count": 128,
   "srtm_tile_id": "N18E073",
   "srtm_aligned": true,
@@ -56,7 +58,7 @@ Synchronous depth pipeline. Blocks until inference, calibration, and export comp
 }
 ```
 
-Fields `min_elev_m`, `max_elev_m`, `r_squared`, `calibration` are `null` when `is_calibrated` is `false`.
+Fields `min_elev_m`, `max_elev_m`, `r_squared`, `rmse_m`, `mae_m`, `calibration` are `null` when `is_calibrated` is `false`.
 
 **Response 500**
 ```json

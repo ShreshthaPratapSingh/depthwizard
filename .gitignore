@@ -68,11 +68,14 @@ outputs/
 # backend/data/samples/ directory (which has its own rules below).
 /samples/
 
-# backend/data/samples/: track the manifest and docs, ignore image files.
+# backend/data/samples/: track the manifest, docs, and the three demo GeoTIFFs.
 backend/data/samples/*
 !backend/data/samples/.gitkeep
 !backend/data/samples/samples.json
 !backend/data/samples/README.md
+!backend/data/samples/delhi_urban.tif
+!backend/data/samples/mussoorie_hilly.tif
+!backend/data/samples/chennai_coastal.tif
 
 # Local eval test pairs (image + reference DEM copies for run_eval.py)
 eval_pairs/

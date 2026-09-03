@@ -19,6 +19,7 @@ using System.Collections;
 using System.IO;
 using UnityEngine;
 using UnityEngine.Networking;
+using DepthWizard.UI;
 
 namespace DepthWizard.Networking
 {
@@ -47,6 +48,9 @@ namespace DepthWizard.Networking
         public float min_elev_m;
         public float max_elev_m;
         public float r_squared;
+        public float rmse_m;
+        public float mae_m;
+        public int sample_count;
         public string model_id;
         public float inference_ms;
         public string[] warnings;
@@ -152,6 +156,7 @@ namespace DepthWizard.Networking
                 return;
             }
 
+            IsBusy = true;
             StartCoroutine(ProcessSampleCoroutine(sampleId));
         }
 
@@ -173,6 +178,7 @@ namespace DepthWizard.Networking
                 return;
             }
 
+            IsBusy = true;
             StartCoroutine(UploadAsyncCoroutine(imagePath));
         }
 
@@ -438,6 +444,8 @@ namespace DepthWizard.Networking
                     metadata: response
                 );
 
+                AccuracyMetricsHud.Show(response);
+
                 Debug.Log(
                     $"[BackendClient] Terrain generated successfully.\n" +
                     $"  Model: {response.model_id}\n" +
@@ -507,6 +515,8 @@ namespace DepthWizard.Networking
                     relativeHeightScale: heightScale,
                     metadata: response
                 );
+
+                AccuracyMetricsHud.Show(response);
 
                 Debug.Log(
                     $"[BackendClient] Terrain generated (async).\n" +

@@ -54,8 +54,20 @@ the first real request doesn't pay the cold-load penalty.
 
 ## 3. Accuracy findings (the honest part)
 
-Evaluated with `scripts/run_eval.py` against **real SRTM GL1 (30 m)**
-ground truth. Results from `outputs/eval_results.csv`:
+Two different measurements exist. Do not mix them.
+
+**A. Optical GeoTIFF → DA-V2 → linear SRTM fit** (the live pipeline, NFR4):
+
+| region | terrain | R² | RMSE | MAE | vs 50 m target |
+|--------|---------|-----|------|-----|----------------|
+| Delhi | flat urban | ≈ 0 | ~10 m | ~8 m | **meets** (R² is degenerate: almost no SRTM variance) |
+| Chennai | low-relief coast | ≈ 0.68 | ~4.5 m | — | **meets** |
+| Mussoorie | high-relief hills | ≈ 0.39 | ~243 m | — | **misses** |
+| Arunachal | high-relief hills | ≈ 0.26 | ~318 m | ~256 m | **misses** |
+
+Low-relief tiles meet NFR4. Steep tiles fail the same way twice — a systematic DA-V2 vs SRTM limit on high-relief nadir imagery, not a one-off calibration bug.
+
+**B. `scripts/run_eval.py` vs SRTM after scale+shift** (older eval table):
 
 | pair        | terrain | pearson_r | rmse_m | mae_m | slope_rmse | n_valid_px |
 |-------------|---------|-----------|--------|-------|------------|------------|
@@ -63,6 +75,8 @@ ground truth. Results from `outputs/eval_results.csv`:
 
 *(exact values: pearson_r = 0.3765, rmse_m = 9.8738, mae_m = 7.8292,
 slope_rmse = 1.0468)*
+
+**NFR1 (timing, this laptop, DA-V2-Small, 1025²):** first run ~5.5 s (model load), later runs ~0.3–0.4 s. Well under 60 s.
 
 **Plainly: pearson_r ≈ 0.38 is weak-to-marginal correlation with true
 elevation.** The model picks up *some* real signal — plausibly
@@ -103,16 +117,19 @@ retuning.
 
 ## 6. Known limitations
 
+- **High-relief RMSE is systematically above 50 m** — Mussoorie ~243 m and
+  Arunachal ~318 m. Flat/low-relief tiles (Delhi ~10 m, Chennai ~4.5 m)
+  meet the NFR4 cap. Do not quote 317 m as “the” accuracy number.
 - **Weak zero-shot correlation on nadir imagery** — measured r ≈ 0.38 on
-  urban terrain; the model is not reconstructing true elevation reliably.
-- **Only one terrain type evaluated against real ground truth** — urban
-  (delhi), due to time constraints. A forested-terrain *visual* check
-  showed tree-texture noise rather than terrain relief, consistent with
-  the same underlying limitation.
+  urban terrain in the scale+shift eval; the model is not reconstructing
+  true elevation reliably on steep ground.
 - **Confidence thresholds are not tuned per terrain type** — see the
   93.5% urban low-confidence rate above.
 - **Tiling for large images was descoped** for the hackathon timeline
   (oversized inputs are downscaled instead of tiled).
+- **Windows end-to-end is unverified from this Linux machine.** Backend
+  paths are portable; the landing file dialog is StandaloneFileBrowser.
+  Demo samples do not need that dialog.
 
 ## 7. What would improve this with more time
 
