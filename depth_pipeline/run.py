@@ -48,6 +48,27 @@ logger = logging.getLogger(__name__)
 
 _TIFF_EXTS = {".tif", ".tiff"}
 
+# Percentile bounds for normalizing non-uint8 GeoTIFF bands.
+# Using 2nd–98th percentile avoids extreme outlier pixels (sensor noise,
+# saturated values) compressing the useful dynamic range into a narrow band
+# of the 0–255 output.
+_NORM_LO_PERCENTILE = 2
+_NORM_HI_PERCENTILE = 98
+
+
+def _normalize_band_to_uint8(band: np.ndarray) -> np.ndarray:
+    """Rescale a single 2-D band from its native range to 0–255 uint8.
+
+    Uses 2nd–98th percentile stretch so outlier pixels don't compress the
+    useful dynamic range. Values outside the percentile window are clipped.
+    """
+    lo = float(np.percentile(band, _NORM_LO_PERCENTILE))
+    hi = float(np.percentile(band, _NORM_HI_PERCENTILE))
+    if hi - lo < 1e-6:
+        # Flat band (e.g. all zeros or constant) — avoid division by zero.
+        return np.zeros_like(band, dtype=np.uint8)
+    stretched = (band.astype(np.float64) - lo) / (hi - lo)
+    return np.clip(stretched * 255.0, 0, 255).astype(np.uint8)
 # We enforce our own MAX_INPUT_PIXELS cap (and downscale to it), so disable
 # Pillow's decompression-bomb guard: for a large-but-valid image we want to
 # downscale, not raise "unsupported or corrupted image file".
@@ -69,18 +90,44 @@ def _read_rgb(image_path: str) -> np.ndarray:
     Uses rasterio for GeoTIFF (.tif/.tiff) because PIL/Pillow cannot reliably
     handle tiled, compressed, or multi-band GeoTIFF files.  Falls back to PIL
     for everything else (PNG, JPG, etc.).
+
+    For GeoTIFFs whose bands are NOT already uint8 (e.g. UInt16 Sentinel-2
+    reflectance data with values in the thousands), per-band percentile
+    normalization is applied to bring the pixel values into the standard 0–255
+    range expected by the depth model and texture export.
     """
     ext = Path(image_path).suffix.lower()
     if ext in _TIFF_EXTS:
         import rasterio
         with rasterio.open(image_path) as src:
+            native_dtype = src.dtypes[0]  # e.g. 'uint8', 'uint16', 'float32'
+
             # Read up to the first 3 bands; single-band → replicate to RGB
             if src.count >= 3:
                 rgb = np.stack([src.read(i) for i in (1, 2, 3)], axis=-1)
             else:
                 band = src.read(1)
                 rgb = np.stack([band, band, band], axis=-1)
-            return rgb.astype(np.uint8)
+
+            if native_dtype == "uint8":
+                logger.info(
+                    "GeoTIFF %s: dtype=%s — already uint8, no normalization needed",
+                    Path(image_path).name, native_dtype,
+                )
+                return rgb.astype(np.uint8)
+
+            # Non-uint8 data (uint16, int16, float32, …): normalize per band.
+            logger.info(
+                "GeoTIFF %s: dtype=%s — applying per-band %d–%d percentile "
+                "normalization to uint8",
+                Path(image_path).name, native_dtype,
+                _NORM_LO_PERCENTILE, _NORM_HI_PERCENTILE,
+            )
+            normalized = np.stack(
+                [_normalize_band_to_uint8(rgb[..., ch]) for ch in range(3)],
+                axis=-1,
+            )
+            return normalized
     else:
         with Image.open(image_path) as src:
             return np.asarray(src.convert("RGB"))

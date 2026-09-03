@@ -35,9 +35,9 @@ namespace DepthWizard.Camera
 
         [Header("Spawn Settings")]
 
-        [Tooltip("Height multiplier relative to terrain XZ size. " +
-                 "E.g. 0.5 means spawn height = terrain max height + terrainWidth * 0.5.")]
-        [SerializeField] private float heightOffsetFactor = 0.5f;
+        [Tooltip("Height multiplier relative to terrain vertical range (size.y). " +
+                 "E.g. 0.3 means spawn height = center terrain height + terrainHeightRange * 0.3.")]
+        [SerializeField] private float heightOffsetFactor = 0.3f;
 
         [Tooltip("Initial downward pitch angle (degrees). " +
                  "30-40 gives a good overview of the terrain.")]
@@ -100,13 +100,21 @@ namespace DepthWizard.Camera
             float centerZ = terrainPos.z + terrainSize.z * 0.5f;
 
             // --- Compute spawn height ---
-            float maxHeight = GetMaxTerrainHeight(td, terrainPos);
+            // Sample terrain height at the actual center point rather than
+            // using the global maximum, so we spawn relative to where we're
+            // looking, not the highest peak that could be far away.
+            Vector3 centerWorld = new Vector3(centerX, 0f, centerZ);
+            float centerHeight = terrain.SampleHeight(centerWorld) + terrainPos.y;
 
-            // Height = max terrain elevation + proportional offset based on terrain width
-            float spawnY = maxHeight + terrainSize.x * heightOffsetFactor;
+            // Offset above the center by a fraction of the terrain's VERTICAL
+            // range (size.y), not XZ width. size.y is the heightScale passed
+            // to TerrainData — typically 200m relative or the calibrated
+            // elevation range. This keeps the spawn proportional to the actual
+            // terrain relief regardless of how large the XZ footprint is.
+            float spawnY = centerHeight + terrainSize.y * heightOffsetFactor;
 
             // Pull back slightly from center so forward camera direction shows terrain
-            float pullBack = terrainSize.z * 0.25f;
+            float pullBack = terrainSize.z * 0.15f;
             float spawnZ = centerZ - pullBack;
 
             Vector3 spawnPosition = new Vector3(centerX, spawnY, spawnZ);
@@ -140,7 +148,8 @@ namespace DepthWizard.Camera
                 $"[CameraSpawnPositioner] Positioned camera at ({spawnPosition.x:F0}, " +
                 $"{spawnPosition.y:F0}, {spawnPosition.z:F0}), " +
                 $"pitch {initialPitch}° over terrain center " +
-                $"({centerX:F0}, {centerZ:F0}), terrain size {terrainSize}");
+                $"({centerX:F0}, {centerZ:F0}), terrain size {terrainSize}, " +
+                $"center terrain height {centerHeight:F1}");
         }
 
         /// <summary>
