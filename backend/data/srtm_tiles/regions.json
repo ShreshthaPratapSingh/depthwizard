@@ -30,6 +30,13 @@
       "name": "Chennai Marina coast",
       "bbox": [80.26, 13.02, 80.32, 13.08],
       "filename": "chennai_coastal_srtm.tif"
+    },
+    {
+      "id": "arunachal_hilly",
+      "terrain": "hilly",
+      "name": "Arunachal Pradesh (Sentinel-2 test)",
+      "bbox": [93.59, 27.54, 93.92, 27.83],
+      "filename": "arunachal_hilly_srtm.tif"
     }
   ]
 }
