@@ -44,6 +44,8 @@ _CONTRACT_KEYS = (
     "min_elev_m",
     "max_elev_m",
     "r_squared",
+    "rmse_m",
+    "mae_m",
     "sample_count",
     "srtm_tile_id",
     "warning",
@@ -56,6 +58,8 @@ class ElevationMode(TypedDict):
     min_elev_m: float | None
     max_elev_m: float | None
     r_squared: float | None
+    rmse_m: float | None
+    mae_m: float | None
     sample_count: int | None
     srtm_tile_id: str | None
     warning: str | None
@@ -83,6 +87,8 @@ def _relative(
     calibration: dict | None = None,
     sample_count: int | None = None,
     r_squared: float | None = None,
+    rmse_m: float | None = None,
+    mae_m: float | None = None,
     detail: str | None = None,
 ) -> ElevationMode:
     return {
@@ -91,6 +97,8 @@ def _relative(
         "min_elev_m": None,
         "max_elev_m": None,
         "r_squared": r_squared,
+        "rmse_m": rmse_m,
+        "mae_m": mae_m,
         "sample_count": sample_count,
         "srtm_tile_id": srtm_tile_id,
         "warning": warning,
@@ -219,6 +227,8 @@ def _resolve_elevation_mode(
             calibration=sidecar,
             sample_count=cal["sample_count"] or None,
             r_squared=cal["r2"],
+            rmse_m=cal["rmse_m"],
+            mae_m=cal["mae_m"],
             detail=cal["warning"],
         )
 
@@ -242,6 +252,8 @@ def _resolve_elevation_mode(
         "min_elev_m": min_e,
         "max_elev_m": max_e,
         "r_squared": cal["r2"],
+        "rmse_m": cal["rmse_m"],
+        "mae_m": cal["mae_m"],
         "sample_count": cal["sample_count"],
         "srtm_tile_id": srtm["tile_id"],
         "warning": None,

@@ -208,6 +208,8 @@ def _null_mode() -> dict:
         "min_elev_m": None,
         "max_elev_m": None,
         "r_squared": None,
+        "rmse_m": None,
+        "mae_m": None,
         "sample_count": None,
         "srtm_tile_id": None,
         "warning": None,

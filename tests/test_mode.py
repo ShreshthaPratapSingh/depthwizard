@@ -65,6 +65,8 @@ class ModeFallbackTests(unittest.TestCase):
                 "min_elev_m",
                 "max_elev_m",
                 "r_squared",
+                "rmse_m",
+                "mae_m",
                 "sample_count",
                 "srtm_tile_id",
                 "warning",
