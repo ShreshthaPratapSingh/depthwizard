@@ -80,6 +80,8 @@ namespace DepthWizard.UI
         private static readonly string[][] HINTS_SHARED = new[]
         {
             new[] { "Tab",            "Toggle Orbit" },
+            new[] { "M",              "Toggle Elevation" },
+            new[] { "C",              "Cinematic Flythrough" },
             new[] { "E",              "Export" },
         };
 
