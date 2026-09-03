@@ -16,9 +16,9 @@
     },
     {
       "id": "chennai_coastal",
-      "name": "Chennai Coast (JPEG)",
-      "filename": "chennai_coastal.jpg",
-      "is_georef": false,
+      "name": "Chennai Coast (GeoTIFF)",
+      "filename": "chennai_coastal.tif",
+      "is_georef": true,
       "region": "chennai_coastal"
     }
   ]
