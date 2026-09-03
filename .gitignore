@@ -73,3 +73,6 @@ backend/data/samples/*
 !backend/data/samples/.gitkeep
 !backend/data/samples/samples.json
 !backend/data/samples/README.md
+
+# Local eval test pairs (image + reference DEM copies for run_eval.py)
+eval_pairs/
