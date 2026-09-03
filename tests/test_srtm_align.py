@@ -141,9 +141,17 @@ class SrtmAlignTests(unittest.TestCase):
                 dst_crs="EPSG:4326",
                 tile_dir=tile_dir,
             )
+            # Reproject rounding: query 0.0003° outside the catalog tile.
+            near_miss = find_covering_tile(
+                [77.1797, 28.5797, 77.2603, 28.6603],
+                dst_crs="EPSG:4326",
+                tile_dir=tile_dir,
+            )
         self.assertIsNotNone(hit)
         self.assertEqual(hit["id"], "demo_urban")
         self.assertIsNone(miss)
+        self.assertIsNotNone(near_miss)
+        self.assertEqual(near_miss["id"], "demo_urban")
 
     def test_process_image_png_unchanged_relative(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
