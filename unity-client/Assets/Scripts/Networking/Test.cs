@@ -16,10 +16,21 @@ public class TestTrigger : MonoBehaviour
     {
         var client = GetComponent<BackendClient>();
 
-        // --- Priority 1: Image selected from the Landing Page ---
-        // ImageSessionManager persists across scenes via DontDestroyOnLoad.
-        // If the user picked an image on the landing page, use it.
+        if (FindFirstObjectByType<Terrain>() != null)
+        {
+            Debug.Log("[TestTrigger] Terrain already exists; skipping a second process.");
+            return;
+        }
+
         var session = ImageSessionManager.Instance;
+        if (session != null && !string.IsNullOrEmpty(session.SampleId))
+        {
+            Debug.Log($"[TestTrigger] Using sample from landing page: {session.SampleId}");
+            client.ProcessSample(session.SampleId);
+            return;
+        }
+
+        // --- Priority 1: Image selected from the Landing Page ---
         if (session != null && session.HasImage)
         {
             Debug.Log($"[TestTrigger] Using image from landing page: {session.FilePath}");

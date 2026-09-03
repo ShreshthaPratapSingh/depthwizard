@@ -102,6 +102,15 @@ namespace DepthWizard.UI
         /// <summary>True when a valid image is currently loaded.</summary>
         public bool HasImage => ImageBytes != null && ImageBytes.Length > 0;
 
+        /// <summary>Preloaded sample id from GET /samples, or null.</summary>
+        public string SampleId { get; private set; }
+
+        /// <summary>Display name of the selected sample, if any.</summary>
+        public string SampleName { get; private set; }
+
+        /// <summary>True when Generate can run (upload file or sample id).</summary>
+        public bool HasSource => HasImage || !string.IsNullOrEmpty(SampleId);
+
         // ---------------------------------------------------------------------
         // Events
         // ---------------------------------------------------------------------
@@ -137,6 +146,8 @@ namespace DepthWizard.UI
             ImageBytes = bytes;
             FilePath = path;
             PreviewTexture = texture;
+            SampleId = null;
+            SampleName = null;
             Width = texture != null ? texture.width : 0;
             Height = texture != null ? texture.height : 0;
 
@@ -145,6 +156,29 @@ namespace DepthWizard.UI
                 $"({Width}×{Height}, {bytes.Length / 1024}KB)");
 
             OnImageLoaded?.Invoke(texture);
+        }
+
+        /// <summary>
+        /// Select a backend preloaded sample. Generate will call
+        /// POST /process-sample/{id} instead of uploading a local file.
+        /// </summary>
+        public void SetSample(string sampleId, string sampleName)
+        {
+            if (PreviewTexture != null)
+            {
+                Destroy(PreviewTexture);
+            }
+
+            ImageBytes = null;
+            FilePath = null;
+            PreviewTexture = null;
+            SampleId = sampleId;
+            SampleName = sampleName;
+            Width = 0;
+            Height = 0;
+
+            Debug.Log($"[ImageSessionManager] Sample set: {sampleId}");
+            OnImageLoaded?.Invoke(null);
         }
 
         /// <summary>
@@ -161,6 +195,8 @@ namespace DepthWizard.UI
             ImageBytes = null;
             FilePath = null;
             PreviewTexture = null;
+            SampleId = null;
+            SampleName = null;
             Width = 0;
             Height = 0;
 

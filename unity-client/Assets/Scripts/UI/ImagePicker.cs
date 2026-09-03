@@ -73,16 +73,25 @@ namespace DepthWizard.UI
         /// </summary>
         public void OpenFileBrowser()
         {
-            string[] paths = StandaloneFileBrowser.OpenFilePanel(
-                title: "Select an Image",
-                directory: "",
-                extensions: FILE_FILTERS,
-                multiselect: false
-            );
+            string[] paths;
+            try
+            {
+                paths = StandaloneFileBrowser.OpenFilePanel(
+                    title: "Select an Image",
+                    directory: "",
+                    extensions: FILE_FILTERS,
+                    multiselect: false
+                );
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[ImagePicker] Native file dialog failed: {ex.Message}");
+                OnError?.Invoke("File dialog unavailable on this OS. Use a demo sample button instead.");
+                return;
+            }
 
             if (paths == null || paths.Length == 0 || string.IsNullOrEmpty(paths[0]))
             {
-                // User cancelled the dialog — not an error
                 Debug.Log("[ImagePicker] File dialog cancelled.");
                 return;
             }
