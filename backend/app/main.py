@@ -50,6 +50,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.on_event("startup")
+def _startup_warmup():
+    """Preload the depth model so the first real request is fast."""
+    from depth_pipeline.run import warmup
+    warmup()
+
+
 # ---------------------------------------------------------------------------
 # GET /health
 # ---------------------------------------------------------------------------
