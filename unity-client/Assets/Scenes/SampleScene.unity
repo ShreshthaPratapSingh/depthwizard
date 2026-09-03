@@ -197,6 +197,7 @@ GameObject:
   - component: {fileID: 330585549}
   - component: {fileID: 330585550}
   - component: {fileID: 330585551}
+  - component: {fileID: 330585552}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -389,6 +390,23 @@ MonoBehaviour:
   heightOffsetFactor: 0.5
   initialPitch: 35
   pollInterval: 0.25
+--- !u!114 &330585552
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a3f7c1d9e5b24a8fb6d0e3c7f9a1b4d6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DepthWizard.Camera.CinematicFlythrough
+  duration: 30
+  waypointCount: 8
+  heightFactor: 0.5
+  radiusFactor: 0.6
+  heightVariation: 0.15
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
