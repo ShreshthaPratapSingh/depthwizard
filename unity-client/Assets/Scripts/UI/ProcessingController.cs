@@ -267,8 +267,17 @@ namespace DepthWizard.UI
                         yield break;
                     }
 
+                    // Preserve the original file extension so the backend
+                    // uses the correct reader (rasterio for .tif, PIL for .png/.jpg).
+                    string originalExt = ".png";
+                    if (!string.IsNullOrEmpty(session.FilePath))
+                    {
+                        string ext = System.IO.Path.GetExtension(session.FilePath);
+                        if (!string.IsNullOrEmpty(ext)) originalExt = ext;
+                    }
+
                     imagePath = System.IO.Path.Combine(
-                        Application.temporaryCachePath, "depthwizard_upload.png");
+                        Application.temporaryCachePath, "depthwizard_upload" + originalExt);
 
                     try
                     {

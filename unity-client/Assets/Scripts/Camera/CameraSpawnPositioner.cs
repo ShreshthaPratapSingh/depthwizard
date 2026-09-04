@@ -75,7 +75,11 @@ namespace DepthWizard.Camera
         {
             var wait = new WaitForSeconds(pollInterval);
 
-            // Poll until terrain is created by RuntimeTerrainBuilder
+            // Wait for TestTrigger to finish destroying old terrain and
+            // rebuilding from cache before we start polling.
+            yield return new WaitForSeconds(1.0f);
+
+            // Poll until terrain is created by TestTrigger/RuntimeTerrainBuilder
             while (!_positioned)
             {
                 UnityEngine.Terrain terrain = UnityEngine.Terrain.activeTerrain;

@@ -1,57 +1,111 @@
+// =============================================================================
+// TestTrigger.cs — Terrain builder for SampleScene
+//
+// When SampleScene loads, this script builds the terrain from the data
+// cached in ImageSessionManager. If no cache exists, it re-uploads the
+// user's image to the backend.
+//
+// ALWAYS destroys any pre-existing terrain and rebuilds fresh.
+// =============================================================================
+
+using System;
 using UnityEngine;
 using DepthWizard.Networking;
+using DepthWizard.Terrain;
 using DepthWizard.UI;
 
 public class TestTrigger : MonoBehaviour
 {
-    [Header("Sample mode (preferred for quick demo)")]
-    [Tooltip("If set, calls POST /process-sample/{sampleId} on Start.")]
-    [SerializeField] private string sampleId = "delhi_urban";
-
-    [Header("File upload mode (set sampleId empty to use this)")]
-    [Tooltip("Absolute path to a local image file.")]
-    [SerializeField] private string testImagePath = "";
-
     void Start()
     {
-        var client = GetComponent<BackendClient>();
-
-        if (FindFirstObjectByType<Terrain>() != null)
-        {
-            Debug.Log("[TestTrigger] Terrain already exists; skipping a second process.");
-            return;
-        }
+        // ALWAYS destroy any existing terrain first — never skip
+        DestroyExistingTerrain();
 
         var session = ImageSessionManager.Instance;
-        if (session != null && !string.IsNullOrEmpty(session.SampleId))
+        if (session == null)
         {
-            Debug.Log($"[TestTrigger] Using sample from landing page: {session.SampleId}");
-            client.ProcessSample(session.SampleId);
+            Debug.LogError("[TestTrigger] No ImageSessionManager found.");
             return;
         }
 
-        // --- Priority 1: Image selected from the Landing Page ---
-        if (session != null && session.HasImage)
+        // ── Path 1: Cached result from the processing pipeline ──
+        if (session.HasResult)
         {
-            Debug.Log($"[TestTrigger] Using image from landing page: {session.FilePath}");
+            Debug.Log("[TestTrigger] Building terrain from cached result.");
+            BuildTerrainFromCache(session);
+            return;
+        }
+
+        // ── Path 2: Re-upload the image (original working behavior) ──
+        var client = GetComponent<BackendClient>();
+        if (client == null)
+            client = FindFirstObjectByType<BackendClient>();
+        if (client == null)
+        {
+            Debug.LogError("[TestTrigger] No BackendClient found.");
+            return;
+        }
+
+        if (session.HasImage)
+        {
+            Debug.Log($"[TestTrigger] Re-uploading image: {session.FilePath}");
             client.UploadAndGenerate(session.FilePath);
             return;
         }
 
-        // --- Priority 2: Hardcoded sample ID (for dev/demo without landing page) ---
-        if (!string.IsNullOrEmpty(sampleId))
+        if (!string.IsNullOrEmpty(session.SampleId))
         {
-            client.ProcessSample(sampleId);
+            Debug.Log($"[TestTrigger] Processing sample: {session.SampleId}");
+            client.ProcessSample(session.SampleId);
+            return;
         }
-        // --- Priority 3: Hardcoded file path (for dev testing) ---
-        else if (!string.IsNullOrEmpty(testImagePath))
+
+        Debug.LogWarning("[TestTrigger] No image data available.");
+    }
+
+    private void DestroyExistingTerrain()
+    {
+        // Find and destroy ALL terrain objects IMMEDIATELY.
+        // Must use DestroyImmediate — regular Destroy() is deferred to end
+        // of frame, and RuntimeTerrainBuilder.Build() would still find the
+        // doomed object via GameObject.Find(), update it, then Unity destroys
+        // it at frame end — losing the new terrain data.
+        var terrains = FindObjectsByType<UnityEngine.Terrain>(FindObjectsSortMode.None);
+        foreach (var t in terrains)
         {
-            client.UploadAndGenerate(testImagePath);
+            Debug.Log($"[TestTrigger] Destroying existing terrain: {t.gameObject.name}");
+            DestroyImmediate(t.gameObject);
         }
-        else
+    }
+
+    private void BuildTerrainFromCache(ImageSessionManager session)
+    {
+        var response = session.ResultResponse;
+
+        float scale = 200f;
+        float baseAltitude = 0f;
+
+        if (response.is_calibrated &&
+            response.max_elev_m > response.min_elev_m)
         {
-            Debug.LogWarning("[TestTrigger] No image source available. " +
-                "Select an image from the Landing Page, or set sampleId/testImagePath in the Inspector.");
+            scale = response.max_elev_m - response.min_elev_m;
+            baseAltitude = response.min_elev_m;
+            Debug.Log($"[TestTrigger] Calibrated: {response.min_elev_m:F1}m – {response.max_elev_m:F1}m");
         }
+
+        RuntimeTerrainBuilder.Build(
+            heightmapPngBytes: session.ResultHeightmapBytes,
+            texturePngBytes: session.ResultTextureBytes,
+            expectedResolution: response.width,
+            terrainWidth: 500f,
+            terrainLength: 500f,
+            heightScale: scale,
+            baseAltitude: baseAltitude,
+            relativeHeightScale: 200f,
+            metadata: response
+        );
+
+        AccuracyMetricsHud.Show(response);
+        Debug.Log($"[TestTrigger] Terrain built. Calibrated={response.is_calibrated}, Model={response.model_id}");
     }
 }

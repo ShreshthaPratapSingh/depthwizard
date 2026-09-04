@@ -18,6 +18,11 @@
 
 from __future__ import annotations
 
+# Prevent OMP Error #15 when numpy and torch link different OpenMP runtimes.
+# Must be set before any numpy/torch import.
+import os
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
 import base64
 import json
 import shutil

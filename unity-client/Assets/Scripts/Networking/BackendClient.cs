@@ -414,49 +414,19 @@ namespace DepthWizard.Networking
                 return;
             }
 
-            try
-            {
-                // When the backend successfully calibrated depth to meters,
-                // use the real elevation range. Otherwise use the Inspector's
-                // relative heightScale (default 200f).
-                float scale = heightScale;
-                float baseAltitude = 0f;
-                if (response.is_calibrated &&
-                    response.max_elev_m > response.min_elev_m)
-                {
-                    scale = response.max_elev_m - response.min_elev_m;
-                    baseAltitude = response.min_elev_m;
-                    Debug.Log(
-                        $"[BackendClient] Calibrated mode: " +
-                        $"elevation {response.min_elev_m:F1}m - {response.max_elev_m:F1}m " +
-                        $"(range {scale:F1}m, R²={response.r_squared:F3})");
-                }
+            // Cache result in session so it survives the scene transition
+            ImageSessionManager.Instance?.SetResult(heightmapBytes, textureBytes, response);
 
-                Terrain.RuntimeTerrainBuilder.Build(
-                    heightmapPngBytes: heightmapBytes,
-                    texturePngBytes: textureBytes,
-                    expectedResolution: response.width,
-                    terrainWidth: terrainSize,
-                    terrainLength: terrainSize,
-                    heightScale: scale,
-                    baseAltitude: baseAltitude,
-                    relativeHeightScale: heightScale,
-                    metadata: response
-                );
+            // NOTE: We do NOT build terrain here. The scene will transition
+            // to SampleScene, which would destroy any terrain built now.
+            // TestTrigger in SampleScene reads from the cache and builds there.
 
-                AccuracyMetricsHud.Show(response);
-
-                Debug.Log(
-                    $"[BackendClient] Terrain generated successfully.\n" +
-                    $"  Model: {response.model_id}\n" +
-                    $"  Inference: {response.inference_ms:F0}ms\n" +
-                    $"  Calibrated: {response.is_calibrated}\n" +
-                    $"  Warnings: {(response.warnings != null ? string.Join("; ", response.warnings) : "none")}");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[BackendClient] Terrain generation failed: {ex.Message}\n{ex.StackTrace}");
-            }
+            Debug.Log(
+                $"[BackendClient] Result cached successfully.\n" +
+                $"  Model: {response.model_id}\n" +
+                $"  Inference: {response.inference_ms:F0}ms\n" +
+                $"  Calibrated: {response.is_calibrated}\n" +
+                $"  Warnings: {(response.warnings != null ? string.Join("; ", response.warnings) : "none")}");
         }
 
         /// <summary>
@@ -493,40 +463,16 @@ namespace DepthWizard.Networking
                 return;
             }
 
-            try
-            {
-                float scale = heightScale;
-                float baseAltitude = 0f;
-                if (response.is_calibrated &&
-                    response.max_elev_m > response.min_elev_m)
-                {
-                    scale = response.max_elev_m - response.min_elev_m;
-                    baseAltitude = response.min_elev_m;
-                }
+            // Cache result in session so it survives the scene transition
+            ImageSessionManager.Instance?.SetResult(heightmapBytes, textureBytes, response);
 
-                Terrain.RuntimeTerrainBuilder.Build(
-                    heightmapPngBytes: heightmapBytes,
-                    texturePngBytes: textureBytes,
-                    expectedResolution: response.width,
-                    terrainWidth: terrainSize,
-                    terrainLength: terrainSize,
-                    heightScale: scale,
-                    baseAltitude: baseAltitude,
-                    relativeHeightScale: heightScale,
-                    metadata: response
-                );
+            // NOTE: We do NOT build terrain here. TestTrigger in SampleScene
+            // will read from the cache and build there.
 
-                AccuracyMetricsHud.Show(response);
-
-                Debug.Log(
-                    $"[BackendClient] Terrain generated (async).\n" +
-                    $"  Model: {response.model_id}\n" +
-                    $"  Calibrated: {response.is_calibrated}");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[BackendClient] Terrain generation failed: {ex.Message}\n{ex.StackTrace}");
-            }
+            Debug.Log(
+                $"[BackendClient] Async result cached.\n" +
+                $"  Model: {response.model_id}\n" +
+                $"  Calibrated: {response.is_calibrated}");
         }
 
         private static string GetMimeType(string fileName)
