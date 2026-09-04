@@ -20,7 +20,11 @@
 // =============================================================================
 
 using System.Collections;
+using System.IO;
+using Process = System.Diagnostics.Process;
+using ProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
@@ -101,8 +105,12 @@ namespace DepthWizard.UI
             SetInitialState();
         }
 
+        private static Process _backendProcess;
+
         private void Start()
         {
+            StartCoroutine(EnsureBackendRunning());
+
             var catalog = gameObject.GetComponent<SampleCatalogUI>();
             if (catalog == null)
                 catalog = gameObject.AddComponent<SampleCatalogUI>();
@@ -115,6 +123,14 @@ namespace DepthWizard.UI
         private void OnDestroy()
         {
             UnwireEvents();
+        }
+
+        private void OnApplicationQuit()
+        {
+            if (_backendProcess != null && !_backendProcess.HasExited)
+            {
+                try { _backendProcess.Kill(); } catch { }
+            }
         }
 
         // ---------------------------------------------------------------------
@@ -477,6 +493,87 @@ namespace DepthWizard.UI
         {
             yield return new WaitForSeconds(delay);
             SetStatus("", COLOR_STATUS_DEFAULT);
+        }
+
+        private IEnumerator EnsureBackendRunning()
+        {
+            // First check if backend is already responding
+            using (var uwr = UnityWebRequest.Get("http://localhost:8000/health"))
+            {
+                uwr.timeout = 2;
+                yield return uwr.SendWebRequest();
+                if (uwr.result == UnityWebRequest.Result.Success)
+                {
+                    UnityEngine.Debug.Log("[LandingPage] Backend is already running on http://localhost:8000.");
+                    yield break;
+                }
+            }
+
+            // Backend not detected, look for START_BACKEND.bat
+            string[] searchDirs = new string[]
+            {
+                Directory.GetCurrentDirectory(),
+                Path.GetFullPath(Path.Combine(Application.dataPath, "..")),
+                Path.GetFullPath(Path.Combine(Application.dataPath, "../..")),
+                Path.GetFullPath(Path.Combine(Application.dataPath, "../../..")),
+            };
+
+            string batPath = null;
+            string rootDir = null;
+
+            foreach (var dir in searchDirs)
+            {
+                string candidate = Path.Combine(dir, "START_BACKEND.bat");
+                if (File.Exists(candidate))
+                {
+                    batPath = candidate;
+                    rootDir = dir;
+                    break;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(batPath))
+            {
+                SetStatus("Starting local AI backend...", COLOR_STATUS_DEFAULT);
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c \"{batPath}\"",
+                        WorkingDirectory = rootDir,
+                        WindowStyle = System.Diagnostics.ProcessWindowStyle.Minimized,
+                        UseShellExecute = true
+                    };
+                    _backendProcess = Process.Start(psi);
+                    UnityEngine.Debug.Log($"[LandingPage] Auto-started backend: {batPath}");
+                }
+                catch (System.Exception ex)
+                {
+                    UnityEngine.Debug.LogWarning($"[LandingPage] Could not auto-launch backend: {ex.Message}");
+                }
+
+                // Poll /health for up to 10 seconds
+                float timer = 0f;
+                while (timer < 10f)
+                {
+                    yield return new WaitForSeconds(1.5f);
+                    timer += 1.5f;
+
+                    using (var uwr = UnityWebRequest.Get("http://localhost:8000/health"))
+                    {
+                        uwr.timeout = 2;
+                        yield return uwr.SendWebRequest();
+                        if (uwr.result == UnityWebRequest.Result.Success)
+                        {
+                            SetStatus("Backend ready", COLOR_STATUS_SUCCESS);
+                            yield return new WaitForSeconds(2.5f);
+                            SetStatus("", COLOR_STATUS_DEFAULT);
+                            yield break;
+                        }
+                    }
+                }
+            }
         }
     }
 }
