@@ -20,6 +20,7 @@
 
 using System;
 using UnityEngine;
+using DepthWizard.Networking;
 
 namespace DepthWizard.UI
 {
@@ -111,6 +112,21 @@ namespace DepthWizard.UI
         /// <summary>True when Generate can run (upload file or sample id).</summary>
         public bool HasSource => HasImage || !string.IsNullOrEmpty(SampleId);
 
+        // ----- Cached backend result (survives scene transition) -----
+
+        /// <summary>Decoded heightmap PNG bytes from the last successful backend run.</summary>
+        public byte[] ResultHeightmapBytes { get; private set; }
+
+        /// <summary>Decoded texture PNG bytes from the last successful backend run.</summary>
+        public byte[] ResultTextureBytes { get; private set; }
+
+        /// <summary>Full parsed response from the last successful backend run.</summary>
+        public ProcessResponse ResultResponse { get; private set; }
+
+        /// <summary>True when a valid backend result is cached and ready to build terrain.</summary>
+        public bool HasResult => ResultHeightmapBytes != null && ResultHeightmapBytes.Length > 0
+                                 && ResultResponse != null;
+
         // ---------------------------------------------------------------------
         // Events
         // ---------------------------------------------------------------------
@@ -182,6 +198,21 @@ namespace DepthWizard.UI
         }
 
         /// <summary>
+        /// Cache the backend result so it survives the scene transition.
+        /// Called by BackendClient after a successful process run.
+        /// </summary>
+        public void SetResult(byte[] heightmapBytes, byte[] textureBytes, ProcessResponse response)
+        {
+            ResultHeightmapBytes = heightmapBytes;
+            ResultTextureBytes = textureBytes;
+            ResultResponse = response;
+            Debug.Log($"[ImageSessionManager] Result cached: " +
+                      $"heightmap={heightmapBytes?.Length / 1024}KB, " +
+                      $"texture={textureBytes?.Length / 1024}KB, " +
+                      $"calibrated={response?.is_calibrated}");
+        }
+
+        /// <summary>
         /// Reset all state. Call when returning to the landing page or
         /// starting a new session.
         /// </summary>
@@ -199,6 +230,9 @@ namespace DepthWizard.UI
             SampleName = null;
             Width = 0;
             Height = 0;
+            ResultHeightmapBytes = null;
+            ResultTextureBytes = null;
+            ResultResponse = null;
 
             Debug.Log("[ImageSessionManager] Session cleared.");
             OnImageCleared?.Invoke();
