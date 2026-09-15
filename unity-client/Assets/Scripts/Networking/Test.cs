@@ -105,7 +105,14 @@ public class TestTrigger : MonoBehaviour
             metadata: response
         );
 
+        // --- HUD overlays ---
         AccuracyMetricsHud.Show(response);
+        CoordinateOverlay.Show(response);
+
+        // --- Visual environment polish ---
+        EnvironmentPolish.Apply();
+
         Debug.Log($"[TestTrigger] Terrain built. Calibrated={response.is_calibrated}, Model={response.model_id}");
     }
 }
+
