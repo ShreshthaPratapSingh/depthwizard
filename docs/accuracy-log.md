@@ -1,0 +1,42 @@
+## GAMUS Benchmark -- 2026-09-16 23:05 UTC
+
+Dataset: [earthflow/GAMUS](https://huggingface.co/datasets/earthflow/GAMUS) (validation split, 18 tiles)
+Model: `depth-anything-v2-small` (pretrained, no fine-tuning)
+Metrics computed after least-squares scale+shift alignment (identical to `depth_pipeline.metrics.evaluate`).
+
+### Per-Terrain-Type Results
+
+| Terrain Type | Tiles | RMSE (m) | MAE (m) | Pearson r | Slope RMSE |
+|---|---|---|---|---|---|
+| Forested | 8 | 5.41 | 4.28 | 0.123 | 0.994 |
+| Mixed | 1 | 2.55 | 1.69 | 0.408 | 0.703 |
+| Urban | 9 | 5.18 | 4.16 | 0.326 | 0.919 |
+
+**Overall** (18 tiles): RMSE=5.14 m, MAE=4.08 m, Pearson r=0.240, Slope RMSE=0.941
+
+<details>
+<summary>Per-tile details</summary>
+
+| Sample ID | Terrain | AGL Mean (m) | Relief (m) | RMSE (m) | MAE (m) | Pearson r | Slope RMSE | Inference (ms) |
+|---|---|---|---|---|---|---|---|---|
+| DC_02_26 | forested | 7.8 | 41.5 | 9.38 | 7.54 | -0.285 | 1.148 | 4823 |
+| DC_04_23 | forested | 22.2 | 50.0 | 10.68 | 8.79 | -0.269 | 1.807 | 248 |
+| DC_08_31 | urban | 5.9 | 28.4 | 6.23 | 5.13 | 0.112 | 1.056 | 248 |
+| DC_11_16 | urban | 7.6 | 29.4 | 6.92 | 5.66 | 0.069 | 1.152 | 250 |
+| DC_12_17 | forested | 7.6 | 38.0 | 7.71 | 6.36 | 0.141 | 1.160 | 252 |
+| PHL_6150 | forested | 1.3 | 146.9 | 1.85 | 1.36 | 0.393 | 0.597 | 236 |
+| PHL_6151 | urban | 1.7 | 35.2 | 1.87 | 1.35 | 0.640 | 0.560 | 244 |
+| PHL_6200 | urban | 1.8 | 23.9 | 2.05 | 1.38 | 0.729 | 0.762 | 240 |
+| PHL_6300 | forested | 1.2 | 42.9 | 2.12 | 1.61 | 0.188 | 0.622 | 239 |
+| PHL_6400 | mixed | 1.0 | 27.6 | 2.55 | 1.69 | 0.408 | 0.703 | 241 |
+| PHL_6500 | forested | 1.8 | 28.8 | 2.45 | 1.65 | 0.500 | 0.913 | 239 |
+| PHL_6600 | forested | 1.2 | 27.6 | 2.42 | 1.56 | 0.366 | 0.695 | 238 |
+| DC_04_27 | urban | 5.2 | 38.0 | 6.24 | 4.88 | 0.117 | 0.965 | 243 |
+| DC_09_33 | urban | 4.1 | 23.9 | 5.07 | 4.15 | 0.344 | 0.773 | 238 |
+| DC_10_30 | urban | 6.1 | 45.0 | 5.94 | 4.76 | 0.493 | 1.049 | 242 |
+| DC_11_33 | forested | 4.4 | 26.8 | 6.69 | 5.39 | -0.053 | 1.009 | 246 |
+| DC_11_34 | urban | 5.3 | 25.2 | 5.86 | 4.97 | 0.251 | 0.916 | 232 |
+| DC_12_27 | urban | 6.0 | 36.3 | 6.41 | 5.20 | 0.178 | 1.040 | 239 |
+
+</details>
+

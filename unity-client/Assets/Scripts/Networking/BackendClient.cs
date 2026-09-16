@@ -55,6 +55,11 @@ namespace DepthWizard.Networking
         public float inference_ms;
         public string[] warnings;
 
+        // --- geographic bounding box [west, south, east, north] ---
+        // Populated from depth_pipeline's georef_bbox when the input is a
+        // valid GeoTIFF; null/empty for non-georeferenced images.
+        public float[] bbox;
+
         // --- error fields (only present on 500 responses) ---
         public string detail;
     }
