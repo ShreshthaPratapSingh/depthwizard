@@ -49,6 +49,13 @@ public static class SetupSampleSceneUI
             changed = true;
         }
 
+        // --- FlythroughControlsPanel ---
+        if (cam.GetComponent<DepthWizard.UI.FlythroughControlsPanel>() == null)
+        {
+            Undo.AddComponent<DepthWizard.UI.FlythroughControlsPanel>(cam.gameObject);
+            changed = true;
+        }
+
         if (!changed)
         {
             EditorUtility.DisplayDialog(
@@ -66,6 +73,7 @@ public static class SetupSampleSceneUI
         EditorUtility.DisplayDialog(
             "Setup SampleScene UI",
             "ExportButtonHandler + ControlHintsOverlay + CameraSpawnPositioner\n" +
+            "+ FlythroughControlsPanel\n" +
             "added to Main Camera.\n\nRemember to save the scene (Ctrl+S).",
             "OK");
     }

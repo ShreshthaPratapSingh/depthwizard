@@ -135,6 +135,18 @@ namespace DepthWizard.Camera
             Debug.Log($"[CinematicFlythrough] Started ({duration}s, {waypointCount} waypoints). Press C to cancel.");
         }
 
+        /// <summary>
+        /// Public API for toggling flythrough from UI buttons.
+        /// Keyboard shortcut (C) continues to work via Update().
+        /// </summary>
+        public void ToggleFlythrough()
+        {
+            if (_active)
+                StopFlythrough();
+            else
+                TryStartFlythrough();
+        }
+
         private void StopFlythrough()
         {
             _active = false;

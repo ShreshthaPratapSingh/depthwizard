@@ -248,6 +248,18 @@ namespace DepthWizard.Camera
             }
         }
 
+        /// <summary>
+        /// Public API for toggling camera mode from UI buttons.
+        /// Keyboard shortcut (Tab) continues to work via OnToggleCameraMode.
+        /// </summary>
+        public void ToggleCameraMode()
+        {
+            if (CurrentMode == CameraMode.FreeFly)
+                SwitchToOrbit();
+            else
+                SwitchToFreeFly();
+        }
+
         private void SwitchToOrbit()
         {
             // Compute orbit target position
