@@ -33,6 +33,8 @@ namespace DepthWizard.Networking
         // --- base64-encoded file payloads ---
         public string heightmap_b64;
         public string texture_b64;
+        public string confidence_b64;
+        public string dsm_b64;
 
         // --- metadata (mirrored from depth_pipeline's process_image output) ---
         public string status;

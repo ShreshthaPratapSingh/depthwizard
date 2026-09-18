@@ -61,11 +61,15 @@ namespace DepthWizard.UI
         private TMP_Text _elevationLabel;
         private TMP_Text _cameraModeLabel;
         private TMP_Text _cinematicLabel;
+        private TMP_Text _confidenceLabel;
 
         // Track state for label updates
         private bool _lastAbsolute;
         private CameraMode _lastCameraMode;
         private bool _lastCinematicActive;
+        private bool _lastConfidenceVisible;
+
+        private ConfidenceOverlayController _confidence;
 
         // ---------------------------------------------------------------------
         // Lifecycle
@@ -147,6 +151,9 @@ namespace DepthWizard.UI
 
             _cinematicLabel = CreateButton(panelGo.transform, "Cinematic", "C",
                 () => OnCinematicToggle());
+
+            _confidenceLabel = CreateButton(panelGo.transform, "Confidence", "V",
+                () => OnConfidenceToggle());
         }
 
         // ---------------------------------------------------------------------
@@ -262,6 +269,22 @@ namespace DepthWizard.UI
             }
         }
 
+        private void OnConfidenceToggle()
+        {
+            if (_confidence == null)
+            {
+                _confidence = FindFirstObjectByType<ConfidenceOverlayController>();
+            }
+            if (_confidence != null && _confidence.HasData)
+            {
+                _confidence.Toggle();
+            }
+            else
+            {
+                Debug.LogWarning("[FlythroughControlsPanel] No confidence data loaded.");
+            }
+        }
+
         // ---------------------------------------------------------------------
         // Label updates (reflect current state)
         // ---------------------------------------------------------------------
@@ -301,6 +324,20 @@ namespace DepthWizard.UI
                     _lastCinematicActive = active;
                     _cinematicLabel.text = active ? "Cinematic ■" : "Cinematic";
                     _cinematicLabel.color = active ? COL_ACCENT : COL_LABEL;
+                }
+            }
+
+            // Confidence overlay
+            if (_confidence == null)
+                _confidence = FindFirstObjectByType<ConfidenceOverlayController>();
+            if (_confidence != null)
+            {
+                bool visible = _confidence.IsVisible;
+                if (visible != _lastConfidenceVisible)
+                {
+                    _lastConfidenceVisible = visible;
+                    _confidenceLabel.text = visible ? "Confidence ✓" : "Confidence";
+                    _confidenceLabel.color = visible ? COL_ACCENT : COL_LABEL;
                 }
             }
         }
