@@ -54,19 +54,17 @@ WATER_LOCAL_STDDEV_KERNEL = 5        # window for the local stddev
 # elevation, a plausible low baseline instead of noisy monocular depth.
 WATER_BASELINE_PERCENTILE = 5.0
 
-# Vegetation confidence: ExG = 2G - R - B, then normalized per-image. Dense
-# canopy (high ExG) is a low-confidence zone for monocular depth.
+# Vegetation confidence: ExG = 2G - R - B on uint8 RGB. Dense canopy
+# (high ExG) is a low-confidence zone for monocular depth.
 #
-# Normalization is percentile-based PER IMAGE (not a fixed absolute range): ExG
-# is clipped to its own [low, high] percentile before mapping to 0-1, so it
-# adapts to each image's exposure/contrast. A fixed range tuned on a saturated
-# synthetic green rectangle fails to fire on real, low-saturation olive canopy.
-EXG_PERCENTILE_LOW = 5.0             # ExG below this image percentile -> 0
-EXG_PERCENTILE_HIGH = 95.0           # ExG above this image percentile -> 1
-EXG_VEG_THRESHOLD = 0.20             # normalized ExG above this = vegetation
+# ABSOLUTE threshold on raw ExG (range [-510, +510] for uint8). Real vegetation
+# typically scores ExG > 25-40; urban/bare surfaces are near 0 or negative.
+# Per-image percentile normalization was removed because it caused near-universal
+# flagging (100% of Delhi urban flagged as vegetation — see accuracy-log.md).
+EXG_VEG_THRESHOLD = 30               # absolute ExG above this = vegetation
 # Morphological closing merges speckled per-tree-crown detections into a
 # contiguous canopy zone (a useful overlay, not salt-and-pepper noise).
-VEG_MORPH_KERNEL_SIZE = 15
+VEG_MORPH_KERNEL_SIZE = 7
 
 # Confidence values written into confidence.png (0-255, higher = more trust).
 FULL_CONFIDENCE = 255                # everything not flagged
