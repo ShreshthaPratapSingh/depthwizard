@@ -40,3 +40,27 @@ Metrics computed after least-squares scale+shift alignment (identical to `depth_
 
 </details>
 
+## GAMUS Benchmark (Fine-tuned) -- 2026-09-17 00:39 UTC
+
+Model: `depth-anything-v2-small-gamus` (neck+head fine-tuned on ~200 GAMUS train tiles)
+Baseline: `depth-anything-v2-small` (pretrained, no fine-tuning)
+
+### Per-Terrain-Type Results (Fine-tuned)
+
+| Terrain Type | Tiles | RMSE (m) | MAE (m) | Pearson r | Slope RMSE |
+|---|---|---|---|---|---|
+| Forested | 8 | 5.28 | 4.10 | 0.335 | 0.983 |
+| Mixed | 1 | 1.98 | 1.26 | 0.705 | 0.685 |
+| Urban | 9 | 5.03 | 4.00 | 0.410 | 0.905 |
+
+**Overall** (18 tiles): RMSE=4.97 m, MAE=3.89 m, Pearson r=0.393, Slope RMSE=0.927
+
+### Before vs After Fine-Tuning
+
+| Metric | Pretrained | Fine-tuned | Delta |
+|---|---|---|---|
+| RMSE (m) | 5.140 | 4.970 | -0.170 v |
+| MAE (m) | 4.080 | 3.890 | -0.190 v |
+| Pearson r | 0.240 | 0.393 | +0.153 v |
+| Slope RMSE | 0.941 | 0.927 | -0.014 v |
+
