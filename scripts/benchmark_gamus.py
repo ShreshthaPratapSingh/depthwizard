@@ -162,9 +162,24 @@ def _resolve_sample_ids(requested: list[str], n_tiles: int) -> list[str]:
     return valid[:n_tiles]
 
 
-def benchmark(sample_ids: list[str], n_tiles: int) -> list[dict]:
-    """Run the full benchmark and return per-tile result dicts."""
+def benchmark(sample_ids: list[str], n_tiles: int,
+              leave_out_city: str | None = None) -> list[dict]:
+    """Run the full benchmark and return per-tile result dicts.
+
+    If *leave_out_city* is set (e.g. "DC" or "PHL"), only tiles from that
+    city are evaluated — simulating the "unseen city" generalization test
+    when the model was trained WITHOUT that city's data.
+    """
     ids = _resolve_sample_ids(sample_ids, n_tiles)
+
+    if leave_out_city:
+        prefix = leave_out_city.upper() + "_"
+        ids = [sid for sid in ids if sid.startswith(prefix)]
+        logger.info(
+            "Leave-one-city-out mode: evaluating %d tiles from %s only",
+            len(ids), leave_out_city.upper(),
+        )
+
     logger.info("Benchmarking %d GAMUS tiles from '%s' split", len(ids), GAMUS_SPLIT)
 
     results = []
@@ -186,7 +201,14 @@ def benchmark(sample_ids: list[str], n_tiles: int) -> list[dict]:
         pred_elevation01 = infer_depth(rgb)
         inference_ms = (time.perf_counter() - t0) * 1000.0
 
+        # Overall tile metrics
         metrics = evaluate(pred_elevation01, agl)
+
+        # Per-class metrics
+        per_class = _per_class_metrics(pred_elevation01, agl, cls)
+
+        # Per-height-bucket metrics
+        per_bucket = _per_bucket_metrics(pred_elevation01, agl)
 
         agl_range = float(np.nanmax(agl) - np.nanmin(agl))
         record = {
@@ -196,6 +218,8 @@ def benchmark(sample_ids: list[str], n_tiles: int) -> list[dict]:
             "agl_mean_m": float(np.nanmean(agl)),
             "inference_ms": round(inference_ms, 1),
             **metrics,
+            "per_class": per_class,
+            "per_bucket": per_bucket,
         }
         results.append(record)
 
@@ -207,6 +231,59 @@ def benchmark(sample_ids: list[str], n_tiles: int) -> list[dict]:
         )
 
     return results
+
+
+def _per_class_metrics(
+    pred: np.ndarray, ref: np.ndarray, cls: np.ndarray,
+) -> dict[str, dict]:
+    """Compute metrics per semantic class (building, tree, road, etc.)."""
+    cls_int = cls.astype(int)
+    # Resize cls to match pred shape if needed
+    if cls_int.shape != pred.shape:
+        import cv2 as _cv2
+        cls_int = _cv2.resize(
+            cls_int.astype(np.float32), (pred.shape[1], pred.shape[0]),
+            interpolation=_cv2.INTER_NEAREST,
+        ).astype(int)
+
+    result = {}
+    for cls_id, cls_name in CLASS_NAMES.items():
+        mask = cls_int == cls_id
+        n_px = int(mask.sum())
+        if n_px < 100:  # skip classes with too few pixels
+            continue
+        m = evaluate(pred, ref, valid_mask=mask)
+        m["n_px"] = n_px
+        m["pct"] = round(100.0 * n_px / cls_int.size, 1)
+        result[cls_name] = m
+    return result
+
+
+# Height buckets for per-AGL analysis.
+_HEIGHT_BUCKETS = [
+    ("0-2m (ground)",   0.0,   2.0),
+    ("2-10m (low)",     2.0,  10.0),
+    ("10-30m (mid)",   10.0,  30.0),
+    ("30m+ (tall)",    30.0, 999.0),
+]
+
+
+def _per_bucket_metrics(
+    pred: np.ndarray, ref: np.ndarray,
+) -> dict[str, dict]:
+    """Compute metrics per height bucket based on reference AGL."""
+    ref_arr = np.asarray(ref, dtype=np.float64)
+    result = {}
+    for label, lo, hi in _HEIGHT_BUCKETS:
+        mask = np.isfinite(ref_arr) & (ref_arr >= lo) & (ref_arr < hi)
+        n_px = int(mask.sum())
+        if n_px < 100:
+            continue
+        m = evaluate(pred, ref, valid_mask=mask)
+        m["n_px"] = n_px
+        m["pct"] = round(100.0 * n_px / ref_arr.size, 1)
+        result[label] = m
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +309,46 @@ def _aggregate_by_terrain(results: list[dict]) -> dict[str, dict]:
     return agg
 
 
-def write_accuracy_log(results: list[dict], agg: dict[str, dict]) -> None:
+def _aggregate_per_class(results: list[dict]) -> dict[str, dict]:
+    """Aggregate per-class metrics across all tiles."""
+    class_data: dict[str, list[dict]] = defaultdict(list)
+    for r in results:
+        for cls_name, m in r.get("per_class", {}).items():
+            class_data[cls_name].append(m)
+
+    agg = {}
+    for cls_name, recs in sorted(class_data.items()):
+        agg[cls_name] = {
+            "rmse_m": float(np.nanmean([r["rmse_m"] for r in recs])),
+            "mae_m": float(np.nanmean([r["mae_m"] for r in recs])),
+            "pearson_r": float(np.nanmean([r["pearson_r"] for r in recs])),
+            "n_tiles": len(recs),
+        }
+    return agg
+
+
+def _aggregate_per_bucket(results: list[dict]) -> dict[str, dict]:
+    """Aggregate per-height-bucket metrics across all tiles."""
+    bucket_data: dict[str, list[dict]] = defaultdict(list)
+    for r in results:
+        for label, m in r.get("per_bucket", {}).items():
+            bucket_data[label].append(m)
+
+    agg = {}
+    for label, recs in bucket_data.items():  # preserve insertion order
+        agg[label] = {
+            "rmse_m": float(np.nanmean([r["rmse_m"] for r in recs])),
+            "mae_m": float(np.nanmean([r["mae_m"] for r in recs])),
+            "pearson_r": float(np.nanmean([r["pearson_r"] for r in recs])),
+            "n_tiles": len(recs),
+        }
+    return agg
+
+
+def write_accuracy_log(results: list[dict], agg: dict[str, dict],
+                       class_agg: dict | None = None,
+                       bucket_agg: dict | None = None,
+                       leave_out_city: str | None = None) -> None:
     """Append the GAMUS benchmark results to docs/accuracy-log.md."""
     ACCURACY_LOG_MD.parent.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -247,7 +363,10 @@ def write_accuracy_log(results: list[dict], agg: dict[str, dict]) -> None:
         lines.append("# DepthWizard Accuracy Log")
         lines.append("")
 
-    lines.append(f"## GAMUS Benchmark -- {ts}")
+    header = f"## GAMUS Benchmark -- {ts}"
+    if leave_out_city:
+        header += f" (leave-out: {leave_out_city.upper()})"
+    lines.append(header)
     lines.append("")
     lines.append(
         f"Dataset: [earthflow/GAMUS](https://huggingface.co/datasets/earthflow/GAMUS) "
@@ -300,6 +419,34 @@ def write_accuracy_log(results: list[dict], agg: dict[str, dict]) -> None:
     lines.append("</details>")
     lines.append("")
 
+    # Per-class breakdown table
+    if class_agg:
+        lines.append("### Per-Class Breakdown")
+        lines.append("")
+        lines.append("| Class | Tiles | RMSE (m) | MAE (m) | Pearson r |")
+        lines.append("|---|---|---|---|---|")
+        for cls_name, m in sorted(class_agg.items()):
+            lines.append(
+                f"| {cls_name.capitalize()} | {m['n_tiles']} | "
+                f"{m['rmse_m']:.2f} | {m['mae_m']:.2f} | "
+                f"{m['pearson_r']:.3f} |"
+            )
+        lines.append("")
+
+    # Per-height-bucket breakdown table
+    if bucket_agg:
+        lines.append("### Per-Height-Bucket Breakdown")
+        lines.append("")
+        lines.append("| Height Bucket | Tiles | RMSE (m) | MAE (m) | Pearson r |")
+        lines.append("|---|---|---|---|---|")
+        for label, m in bucket_agg.items():
+            lines.append(
+                f"| {label} | {m['n_tiles']} | "
+                f"{m['rmse_m']:.2f} | {m['mae_m']:.2f} | "
+                f"{m['pearson_r']:.3f} |"
+            )
+        lines.append("")
+
     ACCURACY_LOG_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
     logger.info("Results appended to %s", ACCURACY_LOG_MD)
 
@@ -334,6 +481,11 @@ def main(argv: list[str] | None = None) -> int:
         "--n-tiles", type=int, default=18,
         help="Number of tiles to benchmark (default: 18).",
     )
+    parser.add_argument(
+        "--leave-out-city", type=str, default=None,
+        help="Only evaluate tiles from this city (e.g. 'DC' or 'PHL') "
+             "for unseen-city generalization testing.",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -343,7 +495,10 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
     t0 = time.perf_counter()
-    results = benchmark(DEFAULT_SAMPLE_IDS, n_tiles=args.n_tiles)
+    results = benchmark(
+        DEFAULT_SAMPLE_IDS, n_tiles=args.n_tiles,
+        leave_out_city=args.leave_out_city,
+    )
 
     if not results:
         logger.error("No tiles were successfully processed.")
@@ -351,8 +506,14 @@ def main(argv: list[str] | None = None) -> int:
 
     agg = _aggregate_by_terrain(results)
 
+    # Aggregate per-class across all tiles
+    class_agg = _aggregate_per_class(results)
+    bucket_agg = _aggregate_per_bucket(results)
+
     print("\n" + "=" * 72)
     print("GAMUS BENCHMARK RESULTS")
+    if args.leave_out_city:
+        print(f"  (leave-one-city-out: evaluating {args.leave_out_city.upper()} only)")
     print("=" * 72)
     for terrain, m in sorted(agg.items()):
         print(
@@ -360,11 +521,29 @@ def main(argv: list[str] | None = None) -> int:
             f"RMSE={m['rmse_m']:.2f}m  MAE={m['mae_m']:.2f}m  "
             f"r={m['pearson_r']:.3f}  slope_rmse={m['slope_rmse']:.3f}"
         )
+
+    if class_agg:
+        print("\nPer-class breakdown:")
+        for cls_name, m in sorted(class_agg.items()):
+            print(
+                f"  {cls_name:16s}  RMSE={m['rmse_m']:.2f}m  "
+                f"MAE={m['mae_m']:.2f}m  r={m['pearson_r']:.3f}"
+            )
+
+    if bucket_agg:
+        print("\nPer-height-bucket breakdown:")
+        for label, m in bucket_agg.items():
+            print(
+                f"  {label:20s}  RMSE={m['rmse_m']:.2f}m  "
+                f"MAE={m['mae_m']:.2f}m  r={m['pearson_r']:.3f}"
+            )
+
     total_s = time.perf_counter() - t0
     print(f"\nTotal time: {total_s:.1f}s ({len(results)} tiles)")
     print("=" * 72)
 
-    write_accuracy_log(results, agg)
+    write_accuracy_log(results, agg, class_agg, bucket_agg,
+                       leave_out_city=args.leave_out_city)
     write_accuracy_jsonl(results)
     return 0
 
