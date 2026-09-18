@@ -27,12 +27,20 @@ namespace DepthWizard.Terrain
         private float calibratedBaseAltitude;
         private bool hasCalibration;
         private bool useAbsolute;
+        private float minElevM;
+        private float maxElevM;
 
         /// <summary>True when the terrain is showing metric (absolute) elevation.</summary>
         public bool IsAbsolute => useAbsolute;
 
         /// <summary>True when calibrated elevation data is available.</summary>
         public bool HasCalibration => hasCalibration;
+
+        /// <summary>Min calibrated elevation in meters (0 if uncalibrated).</summary>
+        public float MinElevM => minElevM;
+
+        /// <summary>Max calibrated elevation in meters (1 if uncalibrated).</summary>
+        public float MaxElevM => maxElevM;
 
         /// <summary>
         /// Called by RuntimeTerrainBuilder.Build() after terrain creation.
@@ -48,6 +56,17 @@ namespace DepthWizard.Terrain
             calibratedScale = Mathf.Max(calScale, 1f);
             calibratedBaseAltitude = calBase;
             hasCalibration = calibrated;
+
+            if (calibrated)
+            {
+                minElevM = calBase;
+                maxElevM = calBase + calScale;
+            }
+            else
+            {
+                minElevM = 0f;
+                maxElevM = 1f;
+            }
 
             // Start in calibrated mode when available.
             useAbsolute = calibrated;
