@@ -29,6 +29,7 @@ from ..config import CALIBRATION_NAME
 from .accuracy import append_accuracy_record
 from .calibrate import (
     calibration_sidecar,
+    calibrate_composite,
     calibrate_to_srtm,
     encode_elevation_u16,
     write_calibration_json,
@@ -202,8 +203,22 @@ def _resolve_elevation_mode(
             georef_bbox=georef["bbox"],
             detail=srtm["warning"],
         )
+    # Try composite calibration first (better for high-relief terrain),
+    # fall back to global fit if composite fails or produces worse RMSE.
+    cal_global = calibrate_to_srtm(relative_depth, srtm["elevation_m"])
+    cal_comp = calibrate_composite(relative_depth, srtm["elevation_m"])
 
-    cal = calibrate_to_srtm(relative_depth, srtm["elevation_m"])
+    # Pick the better result: prefer composite if both succeed and it has
+    # lower RMSE; otherwise use global.
+    if (cal_comp["ok"] and cal_global["ok"]
+            and cal_comp["rmse_m"] is not None
+            and cal_global["rmse_m"] is not None
+            and cal_comp["rmse_m"] < cal_global["rmse_m"]):
+        cal = cal_comp
+    elif cal_comp["ok"] and not cal_global["ok"]:
+        cal = cal_comp
+    else:
+        cal = cal_global
     sidecar = calibration_sidecar(
         cal,
         extra={
