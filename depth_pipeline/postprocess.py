@@ -22,8 +22,6 @@ from .config import (
     BILATERAL_D,
     BILATERAL_SIGMA_COLOR,
     BILATERAL_SIGMA_SPACE,
-    EXG_PERCENTILE_HIGH,
-    EXG_PERCENTILE_LOW,
     EXG_VEG_THRESHOLD,
     FULL_CONFIDENCE,
     GUIDED_FILTER_EPS,
@@ -100,9 +98,12 @@ def _water_mask(source_rgb: np.ndarray) -> np.ndarray:
 def _veg_confidence(source_rgb: np.ndarray) -> np.ndarray:
     """255 everywhere, dropped to VEG_CONFIDENCE over the (closed) canopy zone.
 
-    ExG is normalized against its own [low, high] percentiles per image so the
-    same real, low-saturation olive canopy fires regardless of exposure. A
-    morphological closing then merges the speckled per-crown detections into a
+    ExG = 2G − R − B is computed on the raw uint8 RGB values (range [-510, +510]).
+    An ABSOLUTE threshold is applied (not per-image percentile-normalized) because
+    percentile normalization caused near-universal flagging on urban imagery — even
+    100% of Delhi urban was flagged as vegetation (see accuracy-log.md).
+
+    A morphological closing then merges the speckled per-crown detections into a
     contiguous region before thresholding, so the overlay reads as a clear zone
     rather than salt-and-pepper texture noise.
     """
@@ -111,17 +112,18 @@ def _veg_confidence(source_rgb: np.ndarray) -> np.ndarray:
 
     exg = 2.0 * g - r - b
 
-    # Per-image percentile normalization (adapts to this image's contrast).
-    lo, hi = np.percentile(exg, [EXG_PERCENTILE_LOW, EXG_PERCENTILE_HIGH])
-    exg_norm = np.clip((exg - lo) / (hi - lo + 1e-6), 0.0, 1.0).astype(np.float32)
+    # Direct absolute threshold: vegetation has ExG > 30 on uint8 scale.
+    # No per-image normalization — the threshold is grounded in the chromatic
+    # value range, not a relative percentile.
+    veg_mask = (exg > EXG_VEG_THRESHOLD).astype(np.uint8)
 
-    # Close over the normalized ExG to bridge shadow gaps between tree crowns,
-    # turning speckle into a smooth, contiguous canopy region before threshold.
+    # Close over the binary mask to bridge shadow gaps between tree crowns,
+    # turning speckle into a smooth, contiguous canopy region.
     kernel = np.ones((VEG_MORPH_KERNEL_SIZE, VEG_MORPH_KERNEL_SIZE), np.uint8)
-    exg_closed = cv2.morphologyEx(exg_norm, cv2.MORPH_CLOSE, kernel)
+    veg_closed = cv2.morphologyEx(veg_mask, cv2.MORPH_CLOSE, kernel)
 
     confidence = np.full(source_rgb.shape[:2], FULL_CONFIDENCE, dtype=np.uint8)
-    confidence[exg_closed >= EXG_VEG_THRESHOLD] = VEG_CONFIDENCE
+    confidence[veg_closed > 0] = VEG_CONFIDENCE
     return confidence
 
 

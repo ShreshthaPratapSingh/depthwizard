@@ -273,6 +273,8 @@ def _run_pipeline(input_path: Path, tmp_dir: str) -> JSONResponse:
     # --- Read generated files and base64-encode them ---
     heightmap_b64 = _read_b64(metadata.get("heightmap_path"))
     texture_b64 = _read_b64(metadata.get("texture_path"))
+    confidence_b64 = _read_b64(metadata.get("confidence_mask_path"))
+    dsm_b64 = _read_b64(metadata.get("dsm_geotiff_path"))
 
     # --- Build response mirroring process_image's metadata dict ---
     # We include the full metadata dict as-is, plus the encoded file
@@ -285,6 +287,8 @@ def _run_pipeline(input_path: Path, tmp_dir: str) -> JSONResponse:
         # usable payload.
         "heightmap_b64": heightmap_b64,
         "texture_b64": texture_b64,
+        "confidence_b64": confidence_b64,
+        "dsm_b64": dsm_b64,
     }
 
     return JSONResponse(content=response)
@@ -372,11 +376,15 @@ def _run_pipeline_job(job_id: str, input_path: Path, tmp_dir: str) -> None:
 
         heightmap_b64 = _read_b64(metadata.get("heightmap_path"))
         texture_b64 = _read_b64(metadata.get("texture_path"))
+        confidence_b64 = _read_b64(metadata.get("confidence_mask_path"))
+        dsm_b64 = _read_b64(metadata.get("dsm_geotiff_path"))
 
         result = {
             **metadata,
             "heightmap_b64": heightmap_b64,
             "texture_b64": texture_b64,
+            "confidence_b64": confidence_b64,
+            "dsm_b64": dsm_b64,
         }
 
         with _jobs_lock:

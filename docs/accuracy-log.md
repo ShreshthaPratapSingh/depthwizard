@@ -1,3 +1,29 @@
+# DepthWizard Accuracy Log
+
+## Caveats (NFR11 / §17.3 — read before quoting any number)
+
+1. **Training data scope.** GAMUS (earthflow/GAMUS) contains US-only aerial
+   imagery from two cities: Washington DC and Philadelphia. All fine-tuning and
+   the majority of validation uses tiles from these two cities. Results may not
+   generalize to other geographies, terrain types, or sensor configurations.
+
+2. **In-city results are optimistic.** When train and validation tiles share the
+   same city (same flight, same sensor, similar land use), the model sees
+   near-identical distribution at evaluation time. The meaningful generalization
+   number is the **unseen-city (leave-one-city-out)** result — lead with that
+   when available, not the in-distribution validation RMSE.
+
+3. **No hilly-terrain LiDAR reference.** GAMUS covers flat-to-moderate urban and
+   suburban terrain. There is no paired LiDAR ground truth for high-relief areas
+   (Mussoorie, Arunachal). SRTM-based RMSE numbers for hilly regions reflect
+   SRTM alignment quality, not true DSM accuracy.
+
+4. **Headline accuracy should lead with the unseen-city result** once available
+   from the leave-one-city-out evaluation (Task 5 / FR15). Until then, do not
+   quote the in-distribution 18-tile number as a generalization claim.
+
+---
+
 ## GAMUS Benchmark -- 2026-09-16 23:05 UTC
 
 Dataset: [earthflow/GAMUS](https://huggingface.co/datasets/earthflow/GAMUS) (validation split, 18 tiles)
@@ -64,3 +90,24 @@ Baseline: `depth-anything-v2-small` (pretrained, no fine-tuning)
 | Pearson r | 0.240 | 0.393 | +0.153 v |
 | Slope RMSE | 0.941 | 0.927 | -0.014 v |
 
+## Vegetation Confidence Fix (B6) -- 2026-09-18
+
+**Bug:** Per-image ExG percentile normalization + fixed 0.20 normalized threshold caused
+near-universal vegetation flagging. 100% of Delhi urban and Chennai coastal pixels were
+flagged as low-confidence vegetation — rendering the confidence mask useless.
+
+**Root cause:** Percentile normalization (5th–95th) maps the ExG distribution of EVERY
+image to [0, 1], so even a completely non-vegetated image will have ~15%+ of pixels
+above the 0.20 normalized mark. The 15×15 morphological closing then floods the
+remaining area, inflating to near-100%.
+
+**Fix:** Switched to an absolute ExG threshold (ExG > 30 on uint8 RGB scale, range
+[-510, +510]). Reduced morphological closing kernel from 15×15 to 7×7.
+
+### Before vs After (Vegetation flagged %)
+
+| Sample | Terrain | Before (broken) | After (fixed) | Assessment |
+|---|---|---|---|---|
+| delhi_urban.tif | flat urban | **100.0%** | **42.6%** | Realistic — Delhi has significant urban tree canopy |
+| mussoorie_hilly.tif | high-relief forested | **99.8%** | **87.9%** | Expected — heavily forested mountain |
+| chennai_coastal.tif | low-relief coastal | **100.0%** | **48.7%** | Realistic — significant coastal vegetation |

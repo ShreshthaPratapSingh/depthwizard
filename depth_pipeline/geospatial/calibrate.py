@@ -228,6 +228,146 @@ def calibrate_to_srtm(
         )
 
 
+# ---------------------------------------------------------------------------
+# Composite calibration: low-pass SRTM + calibrated nDSM
+# ---------------------------------------------------------------------------
+
+_COMPOSITE_LOWPASS_SIGMA = 7.0   # Gaussian sigma for SRTM terrain smoothing
+_COMPOSITE_MIN_R2 = 0.10        # minimum R² for nDSM component to be useful
+
+
+def calibrate_composite(
+    relative_depth: np.ndarray,
+    srtm_m: np.ndarray,
+) -> CalibrationResult:
+    """Composite calibration: DSM = low-pass SRTM + calibrated nDSM.
+
+    Instead of fitting a single global polynomial from relative depth to
+    absolute elevation (which fails on high-relief terrain where the depth
+    model cannot capture hundreds of meters of terrain variation), this
+    approach:
+
+    1. Low-pass filters the SRTM DEM to get the smooth terrain surface
+    2. Treats the depth model's output as nDSM (above-ground height)
+    3. Calibrates only the nDSM component
+    4. Adds them: DSM = SRTM_lowpass + calibrated_nDSM
+
+    The rationale: SRTM provides macro terrain (which DA-V2 can't capture
+    from nadir), and DA-V2 provides fine detail (buildings, trees).
+
+    Falls back to the global fit (``calibrate_to_srtm``) if the composite
+    approach fails or produces worse results.
+    """
+    try:
+        import cv2
+        from sklearn.linear_model import LinearRegression
+    except ImportError:
+        return _skipped(
+            "cv2 or scikit-learn not installed; composite calibration skipped"
+        )
+
+    try:
+        x_all, y_all = _finite_pairs(relative_depth, srtm_m)
+    except ValueError as exc:
+        return _skipped(f"{exc}; composite calibration skipped")
+
+    n_valid = int(x_all.size)
+    if n_valid < _MIN_SAMPLES:
+        return _skipped(
+            f"not enough paired samples ({n_valid} < {_MIN_SAMPLES}); "
+            "composite calibration skipped",
+            sample_count=n_valid,
+        )
+
+    try:
+        # Step 1: Low-pass filter the SRTM to get terrain surface
+        srtm_arr = np.asarray(srtm_m, dtype=np.float64)
+        # Fill nodata with nearest valid value before filtering
+        nodata_mask = ~np.isfinite(srtm_arr) | (srtm_arr <= _SRTM_NODATA + 1.0)
+        if nodata_mask.all():
+            return _skipped("SRTM is all nodata; composite calibration skipped",
+                            sample_count=0)
+
+        srtm_filled = srtm_arr.copy()
+        if nodata_mask.any():
+            # Simple fill: use median of valid pixels
+            srtm_filled[nodata_mask] = float(np.nanmedian(srtm_arr[~nodata_mask]))
+
+        ksize = int(_COMPOSITE_LOWPASS_SIGMA * 4) | 1  # ensure odd
+        srtm_lowpass = cv2.GaussianBlur(
+            srtm_filled.astype(np.float32),
+            (ksize, ksize),
+            _COMPOSITE_LOWPASS_SIGMA,
+        ).astype(np.float64)
+
+        # Step 2: Compute nDSM reference = SRTM_raw - SRTM_lowpass
+        ndsm_ref = srtm_filled - srtm_lowpass
+
+        # Step 3: Fit relative_depth -> nDSM_reference (above-ground component)
+        rel = np.asarray(relative_depth, dtype=np.float64)
+        finite = np.isfinite(rel) & np.isfinite(ndsm_ref) & ~nodata_mask
+        if int(finite.sum()) < _MIN_SAMPLES:
+            return _skipped(
+                "not enough valid pixels for nDSM fit; composite calibration skipped",
+                sample_count=int(finite.sum()),
+            )
+
+        x_ndsm, y_ndsm = _subsample(rel[finite], ndsm_ref[finite])
+        sample_count = int(x_ndsm.size)
+
+        lr = LinearRegression()
+        lr.fit(x_ndsm.reshape(-1, 1), y_ndsm)
+        y_pred = lr.predict(x_ndsm.reshape(-1, 1))
+        r2_ndsm, rmse_ndsm, mae_ndsm = _scores(y_ndsm, y_pred)
+
+        # Step 4: Apply — DSM = SRTM_lowpass + calibrated_nDSM
+        ndsm_calibrated = np.full(rel.shape, np.nan, dtype=np.float64)
+        finite_rel = np.isfinite(rel)
+        ndsm_calibrated[finite_rel] = lr.predict(
+            rel[finite_rel].reshape(-1, 1)
+        )
+
+        elevation = srtm_lowpass + ndsm_calibrated
+
+        # Compute overall RMSE against original SRTM
+        valid = np.isfinite(elevation) & np.isfinite(srtm_arr) & ~nodata_mask
+        if int(valid.sum()) < _MIN_SAMPLES:
+            return _skipped(
+                "not enough valid pixels for composite score; skipped",
+                sample_count=sample_count,
+            )
+
+        r2_final, rmse_final, mae_final = _scores(
+            srtm_arr[valid], elevation[valid],
+        )
+
+        warn = None
+        if not math.isfinite(r2_final) or r2_final < 0.5:
+            warn = (
+                f"low composite calibration R² ({r2_final:.3f}); metric "
+                "elevations may be unreliable"
+            )
+
+        return {
+            "ok": True,
+            "elevation_m": elevation.astype(np.float32),
+            "model": "composite",
+            "degree": 1,
+            "coefficients": [float(c) for c in lr.coef_],
+            "intercept": float(lr.intercept_),
+            "r2": float(r2_final),
+            "rmse_m": float(rmse_final),
+            "mae_m": float(mae_final),
+            "sample_count": sample_count,
+            "warning": warn,
+        }
+
+    except Exception as exc:
+        return _skipped(
+            f"composite calibration failed ({exc}); skipped",
+            sample_count=sample_count if "sample_count" in locals() else 0,
+        )
+
 def encode_elevation_u16(elevation_m: np.ndarray) -> tuple[np.ndarray, float, float]:
     """Pack metric elevation into a 16-bit PNG-ready array.
 

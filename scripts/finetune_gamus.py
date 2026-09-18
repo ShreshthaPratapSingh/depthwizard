@@ -34,6 +34,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 # Paths
 PRETRAINED_DIR = _REPO_ROOT / "models" / "depth-anything-v2-small"
 FINETUNED_DIR = _REPO_ROOT / "models" / "depth-anything-v2-small-gamus"
+FINETUNED_V2_DIR = _REPO_ROOT / "models" / "depth-anything-v2-small-gamus-v2"
 CACHE_DIR = _REPO_ROOT / "backend" / "data" / "gamus_cache"
 
 GAMUS_REPO = "earthflow/GAMUS"
@@ -108,6 +109,69 @@ class CombinedLoss(nn.Module):
 
 
 # ===================================================================
+# Degradation augmentation (simulates atmospheric/sensor degradation)
+# ===================================================================
+
+class DegradationAugment:
+    """Random atmospheric/sensor degradation for training robustness.
+
+    Applies to the raw RGB uint8 image BEFORE processor normalization.
+    The AGL depth target is NOT modified (only the image changes).
+    Augmentations:
+    - Gaussian blur (σ 0.5-2.0): simulates atmospheric haze / defocus
+    - Brightness jitter (±20%): simulates exposure variation
+    - Additive Gaussian noise (σ 0-15): simulates sensor noise
+    - Random horizontal flip (with corresponding depth flip)
+    - Random vertical flip (with corresponding depth flip)
+    """
+
+    def __init__(self, p: float = 0.5, seed: int | None = None):
+        self.p = p
+        self.rng = np.random.default_rng(seed)
+
+    def __call__(self, rgb: np.ndarray, agl: np.ndarray
+                 ) -> tuple[np.ndarray, np.ndarray]:
+        rgb = rgb.copy()
+        agl = agl.copy()
+
+        # Random horizontal flip
+        if self.rng.random() < 0.5:
+            rgb = np.flip(rgb, axis=1).copy()
+            agl = np.flip(agl, axis=1).copy()
+
+        # Random vertical flip
+        if self.rng.random() < 0.5:
+            rgb = np.flip(rgb, axis=0).copy()
+            agl = np.flip(agl, axis=0).copy()
+
+        if self.rng.random() > self.p:
+            return rgb, agl
+
+        img = rgb.astype(np.float32)
+
+        # Gaussian blur
+        if self.rng.random() < 0.4:
+            import cv2
+            sigma = self.rng.uniform(0.5, 2.0)
+            ksize = int(sigma * 4) | 1  # ensure odd
+            img = cv2.GaussianBlur(img, (ksize, ksize), sigma)
+
+        # Brightness jitter
+        if self.rng.random() < 0.4:
+            factor = self.rng.uniform(0.8, 1.2)
+            img = img * factor
+
+        # Additive Gaussian noise
+        if self.rng.random() < 0.3:
+            sigma = self.rng.uniform(3.0, 15.0)
+            noise = self.rng.normal(0, sigma, img.shape).astype(np.float32)
+            img = img + noise
+
+        rgb = np.clip(img, 0, 255).astype(np.uint8)
+        return rgb, agl
+
+
+# ===================================================================
 # Dataset
 # ===================================================================
 
@@ -115,11 +179,12 @@ class GAMUSDataset(Dataset):
     """Minimal HDF5 data loader for GAMUS training tiles."""
 
     def __init__(self, tile_ids: list[str], split: str, processor,
-                 cache_dir: Path):
+                 cache_dir: Path, augment: DegradationAugment | None = None):
         self.tile_ids = tile_ids
         self.split = split
         self.processor = processor
         self.cache_dir = cache_dir
+        self.augment = augment
 
     def __len__(self) -> int:
         return len(self.tile_ids)
@@ -144,6 +209,10 @@ class GAMUSDataset(Dataset):
 
         with h5py.File(str(ht_path), "r") as f:
             agl = f["image"][:]           # (1024, 1024) float32
+
+        # Apply degradation augmentation (if enabled)
+        if self.augment is not None:
+            rgb, agl = self.augment(rgb, agl)
 
         # Process image through the DA-V2 processor
         from PIL import Image
@@ -251,6 +320,8 @@ def train(
     batch_size: int = 4,
     lr: float = 2e-5,
     grad_accum: int = 2,
+    output_dir: Path | None = None,
+    use_augment: bool = False,
 ) -> Path:
     """Run the fine-tuning loop. Returns path to saved checkpoint."""
     from transformers import AutoImageProcessor, AutoModelForDepthEstimation
@@ -286,7 +357,11 @@ def train(
     )
 
     # 4. Dataset and dataloader
-    dataset = GAMUSDataset(tile_ids, GAMUS_TRAIN_SPLIT, processor, CACHE_DIR)
+    augment = DegradationAugment(p=0.5) if use_augment else None
+    if augment:
+        logger.info("Degradation augmentation ENABLED (p=0.5)")
+    dataset = GAMUSDataset(tile_ids, GAMUS_TRAIN_SPLIT, processor, CACHE_DIR,
+                           augment=augment)
     dataloader = DataLoader(
         dataset, batch_size=batch_size, shuffle=True,
         num_workers=0,  # HDF5 not fork-safe on Windows
@@ -379,18 +454,19 @@ def train(
             best_loss = avg_loss
 
     # 7. Save checkpoint
-    FINETUNED_DIR.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(str(FINETUNED_DIR))
-    processor.save_pretrained(str(FINETUNED_DIR))
+    save_dir = output_dir or FINETUNED_DIR
+    save_dir.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(str(save_dir))
+    processor.save_pretrained(str(save_dir))
 
     total_time = time.perf_counter() - t_start
     logger.info(
         "Training complete in %.0fs. Checkpoint saved to %s",
-        total_time, FINETUNED_DIR,
+        total_time, save_dir,
     )
     logger.info("Best loss: %.4f", best_loss)
 
-    return FINETUNED_DIR
+    return save_dir
 
 
 # ===================================================================
@@ -406,6 +482,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--grad-accum", type=int, default=2)
+    parser.add_argument(
+        "--output-dir", type=str, default=None,
+        help="Save checkpoint here instead of default FINETUNED_DIR",
+    )
+    parser.add_argument(
+        "--augment", action="store_true", default=False,
+        help="Enable degradation augmentation (blur, noise, jitter, flips)",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -414,6 +498,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
+    out_dir = Path(args.output_dir) if args.output_dir else None
+
     try:
         ckpt_dir = train(
             n_tiles=args.n_tiles,
@@ -421,6 +507,8 @@ def main(argv: list[str] | None = None) -> int:
             batch_size=args.batch_size,
             lr=args.lr,
             grad_accum=args.grad_accum,
+            output_dir=out_dir,
+            use_augment=args.augment,
         )
         print(f"\nCheckpoint saved to: {ckpt_dir}")
         return 0
