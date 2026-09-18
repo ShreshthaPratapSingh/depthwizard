@@ -56,6 +56,13 @@ public static class SetupSampleSceneUI
             changed = true;
         }
 
+        // --- LoadNewImageButton ---
+        if (cam.GetComponent<DepthWizard.UI.LoadNewImageButton>() == null)
+        {
+            Undo.AddComponent<DepthWizard.UI.LoadNewImageButton>(cam.gameObject);
+            changed = true;
+        }
+
         if (!changed)
         {
             EditorUtility.DisplayDialog(
