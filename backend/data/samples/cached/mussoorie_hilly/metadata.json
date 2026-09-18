@@ -1,0 +1,54 @@
+{
+  "heightmap_path": "C:\\Users\\user\\Desktop\\Projects\\SIH\\SIH internal Hackathon\\backend\\data\\samples\\cached\\mussoorie_hilly\\heightmap.png",
+  "texture_path": "C:\\Users\\user\\Desktop\\Projects\\SIH\\SIH internal Hackathon\\backend\\data\\samples\\cached\\mussoorie_hilly\\texture.png",
+  "confidence_mask_path": "C:\\Users\\user\\Desktop\\Projects\\SIH\\SIH internal Hackathon\\backend\\data\\samples\\cached\\mussoorie_hilly\\confidence.png",
+  "width": 1025,
+  "height": 1025,
+  "relative_min": 0.0,
+  "relative_max": 0.9878318309783936,
+  "model_id": "depth-anything-v2-small-gamus",
+  "inference_ms": 279.30189998005517,
+  "status": "ok",
+  "warnings": [
+    "low calibration R\u00b2 (0.153); metric elevations may be unreliable",
+    "calibrated to SRTM (R\u00b2=0.153, n=8000)"
+  ],
+  "is_georeferenced": true,
+  "is_calibrated": true,
+  "min_elev_m": 1247.577392578125,
+  "max_elev_m": 1775.6585693359375,
+  "r_squared": 0.15298681540126158,
+  "rmse_m": 287.5895868215897,
+  "mae_m": 234.62919549916958,
+  "sample_count": 8000,
+  "srtm_tile_id": "mussoorie_hilly",
+  "warning": null,
+  "crs": "EPSG:4326",
+  "bbox": [
+    78.03997249801408,
+    30.41991996072459,
+    78.12001238982913,
+    30.500049684068053
+  ],
+  "srtm_aligned": true,
+  "srtm_coverage": 0.9980487804878049,
+  "calibration": {
+    "ok": true,
+    "model": "linear",
+    "degree": 1,
+    "coefficients": [
+      -534.5861289501031
+    ],
+    "intercept": 1775.6585933564115,
+    "r2": 0.15298681540126158,
+    "rmse_m": 287.5895868215897,
+    "mae_m": 234.62919549916958,
+    "sample_count": 8000,
+    "warning": "low calibration R\u00b2 (0.153); metric elevations may be unreliable",
+    "srtm_tile_id": "mussoorie_hilly",
+    "srtm_coverage": 0.9980487804878049,
+    "terrain": "hilly"
+  },
+  "cached": true,
+  "sample_id": "mussoorie_hilly"
+}

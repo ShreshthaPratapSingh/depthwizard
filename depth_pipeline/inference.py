@@ -29,6 +29,7 @@ scene), "near" no longer means "high elevation" — flip ``INVERT_TO_ELEVATION``
 to True. It is deliberately a single, well-named switch.
 """
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -37,9 +38,38 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Local weights only. NEVER hit the hub / network from here.
-MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / "depth-anything-v2-small"
-MODEL_ID = "depth-anything-v2-small"
+# ---------------------------------------------------------------------------
+# Backbone selection: base vs fine-tuned
+#
+# Set env var DEPTHWIZARD_BACKBONE to one of:
+#   "base"             — original DA-V2-Small (zero-shot)
+#   "gamus-finetuned"  — GAMUS fine-tuned checkpoint
+#
+# Default: "gamus-finetuned" if the checkpoint directory exists, else "base".
+# ---------------------------------------------------------------------------
+_MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
+_BASE_DIR = _MODELS_ROOT / "depth-anything-v2-small"
+_FINETUNED_DIR = _MODELS_ROOT / "depth-anything-v2-small-gamus"
+
+_BACKBONE_CHOICES = {
+    "base": (_BASE_DIR, "depth-anything-v2-small"),
+    "gamus-finetuned": (_FINETUNED_DIR, "depth-anything-v2-small-gamus"),
+}
+
+def _resolve_backbone() -> tuple[Path, str]:
+    """Pick the model directory and ID based on env / availability."""
+    env = os.environ.get("DEPTHWIZARD_BACKBONE", "").strip().lower()
+    if env in _BACKBONE_CHOICES:
+        choice = env
+    elif _FINETUNED_DIR.is_dir() and (_FINETUNED_DIR / "model.safetensors").is_file():
+        choice = "gamus-finetuned"
+    else:
+        choice = "base"
+    model_dir, model_id = _BACKBONE_CHOICES[choice]
+    logger.info("Backbone selected: %s  (dir=%s)", choice, model_dir)
+    return model_dir, model_id
+
+MODEL_DIR, MODEL_ID = _resolve_backbone()
 
 SEED = 42
 

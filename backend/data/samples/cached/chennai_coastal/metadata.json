@@ -1,0 +1,54 @@
+{
+  "heightmap_path": "C:\\Users\\user\\Desktop\\Projects\\SIH\\SIH internal Hackathon\\backend\\data\\samples\\cached\\chennai_coastal\\heightmap.png",
+  "texture_path": "C:\\Users\\user\\Desktop\\Projects\\SIH\\SIH internal Hackathon\\backend\\data\\samples\\cached\\chennai_coastal\\texture.png",
+  "confidence_mask_path": "C:\\Users\\user\\Desktop\\Projects\\SIH\\SIH internal Hackathon\\backend\\data\\samples\\cached\\chennai_coastal\\confidence.png",
+  "width": 1025,
+  "height": 1025,
+  "relative_min": 0.0,
+  "relative_max": 1.0,
+  "model_id": "depth-anything-v2-small-gamus",
+  "inference_ms": 269.28129998850636,
+  "status": "ok",
+  "warnings": [
+    "calibrated to SRTM (R\u00b2=0.751, n=8000)"
+  ],
+  "is_georeferenced": true,
+  "is_calibrated": true,
+  "min_elev_m": -9.233857154846191,
+  "max_elev_m": 9.786767959594727,
+  "r_squared": 0.7507423440054861,
+  "rmse_m": 3.966079449377584,
+  "mae_m": 3.249025365306719,
+  "sample_count": 8000,
+  "srtm_tile_id": "chennai_coastal",
+  "warning": null,
+  "crs": "EPSG:32644",
+  "bbox": [
+    419750.0,
+    1439440.0,
+    426290.0,
+    1446100.0
+  ],
+  "srtm_aligned": true,
+  "srtm_coverage": 0.9911462224866151,
+  "calibration": {
+    "ok": true,
+    "model": "polynomial",
+    "degree": 2,
+    "coefficients": [
+      67.8184203005283,
+      -70.53815865164484
+    ],
+    "intercept": -6.514118790668491,
+    "r2": 0.7507423440054861,
+    "rmse_m": 3.966079449377584,
+    "mae_m": 3.249025365306719,
+    "sample_count": 8000,
+    "warning": null,
+    "srtm_tile_id": "chennai_coastal",
+    "srtm_coverage": 0.9911462224866151,
+    "terrain": "coastal"
+  },
+  "cached": true,
+  "sample_id": "chennai_coastal"
+}

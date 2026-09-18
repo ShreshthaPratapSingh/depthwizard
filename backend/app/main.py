@@ -159,6 +159,9 @@ async def process_sample(sample_id: str):
     Uses the same pipeline and returns the same response schema as
     POST /process, but reads from backend/data/samples/ instead of
     an uploaded file.
+
+    If the live pipeline fails, falls back to cached results (if available)
+    from backend/data/samples/cached/<sample_id>/.
     """
     catalog = _load_samples()
     entry = next((s for s in catalog if s["id"] == sample_id), None)
@@ -177,6 +180,11 @@ async def process_sample(sample_id: str):
         return _run_pipeline(input_path, tmp_dir)
 
     except Exception as exc:
+        # --- Fallback: serve cached results if available ---
+        cached = _try_cached_fallback(sample_id)
+        if cached is not None:
+            return cached
+
         return JSONResponse(
             status_code=500,
             content={
@@ -187,6 +195,50 @@ async def process_sample(sample_id: str):
         )
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _try_cached_fallback(sample_id: str):
+    """Attempt to serve cached results for a sample.
+
+    Returns a JSONResponse if cached data is available, None otherwise.
+    Logs clearly when fallback is used.
+    """
+    import logging
+    logger = logging.getLogger("depthwizard.cache")
+
+    cache_dir = _SAMPLES_DIR / "cached" / sample_id
+    meta_path = cache_dir / "metadata.json"
+    heightmap_path = cache_dir / "heightmap.png"
+    texture_path = cache_dir / "texture.png"
+
+    if not meta_path.is_file():
+        logger.warning(
+            "No cached fallback for sample '%s' (missing %s)", sample_id, meta_path
+        )
+        return None
+
+    logger.warning(
+        "⚠ USING CACHED FALLBACK for sample '%s' — live pipeline failed. "
+        "Results are pre-computed, not from a live run.",
+        sample_id,
+    )
+
+    try:
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        heightmap_b64 = _read_b64(str(heightmap_path))
+        texture_b64 = _read_b64(str(texture_path))
+
+        response = {
+            **metadata,
+            "heightmap_b64": heightmap_b64,
+            "texture_b64": texture_b64,
+            "cached_fallback": True,
+        }
+        return JSONResponse(content=response)
+
+    except Exception as cache_exc:
+        logger.error("Cached fallback failed for '%s': %s", sample_id, cache_exc)
+        return None
 
 
 # ---------------------------------------------------------------------------
