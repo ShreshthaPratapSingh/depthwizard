@@ -64,6 +64,7 @@ class ElevationMode(TypedDict):
     srtm_tile_id: str | None
     warning: str | None
     heightmap_u16: np.ndarray
+    elevation_m: np.ndarray | None  # float32 meters; only set when calibrated
     georef_crs: str | None
     georef_bbox: list[float] | None
     srtm_aligned: bool
@@ -103,6 +104,7 @@ def _relative(
         "srtm_tile_id": srtm_tile_id,
         "warning": warning,
         "heightmap_u16": heightmap_u16,
+        "elevation_m": None,
         "georef_crs": georef_crs,
         "georef_bbox": georef_bbox,
         "srtm_aligned": srtm_aligned,
@@ -258,6 +260,7 @@ def _resolve_elevation_mode(
         "srtm_tile_id": srtm["tile_id"],
         "warning": None,
         "heightmap_u16": packed,
+        "elevation_m": cal["elevation_m"],
         "georef_crs": georef["crs"],
         "georef_bbox": georef["bbox"],
         "srtm_aligned": True,

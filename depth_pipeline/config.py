@@ -26,6 +26,7 @@ CONFIDENCE_NAME = "confidence.png"
 METADATA_NAME = "metadata.json"
 SRTM_ALIGNED_NAME = "srtm_aligned.tif"
 CALIBRATION_NAME = "calibration.json"
+DSM_GEOTIFF_NAME = "dsm.tif"
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SRTM_TILE_DIR = _REPO_ROOT / "backend" / "data" / "srtm_tiles"

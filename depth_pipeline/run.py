@@ -40,7 +40,7 @@ from .config import (
     MODEL_ID,
     TEXTURE_SIZE,
 )
-from .export import export_artifacts, resize_elevation01
+from .export import export_artifacts, export_dsm_geotiff, resize_elevation01
 from .geospatial import apply_to_pipeline_metadata, resolve_elevation_mode
 from .postprocess import postprocess
 
@@ -233,6 +233,7 @@ def _error_metadata(warnings: list[str]) -> dict:
         "heightmap_path": None,
         "texture_path": None,
         "confidence_mask_path": None,
+        "dsm_geotiff_path": None,
         "width": None,
         "height": None,
         "relative_min": None,
@@ -343,9 +344,21 @@ def _run_pipeline(image_path: str, output_dir: str, target_res: int,
             "inference_ms": inference_ms,
             "status": "ok",
             "warnings": warnings,
+            "dsm_geotiff_path": None,
         },
         mode,
     )
+
+    # GeoTIFF DSM export — only when georeferenced AND calibrated.
+    if mode["is_calibrated"] and mode["elevation_m"] is not None:
+        dsm_path = export_dsm_geotiff(
+            mode["elevation_m"],
+            crs=mode["georef_crs"],
+            bbox=mode["georef_bbox"],
+            output_dir=out,
+        )
+        if dsm_path is not None:
+            metadata["dsm_geotiff_path"] = str(dsm_path)
     (out / METADATA_NAME).write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )
