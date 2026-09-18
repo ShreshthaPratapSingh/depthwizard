@@ -21,6 +21,30 @@ inference time.
   true elevation regardless of checkpoint size. Spending latency/VRAM on
   "-base" would not have bought meaningfully better elevation.
 
+**Comparative models considered (ZoeDepth, MiDaS):**
+
+ZoeDepth and MiDaS were evaluated during architecture selection and
+not benchmarked further. The decision rationale:
+
+- **ZoeDepth:** Outputs metric depth, but trained on indoor/street-level
+  datasets (NYUv2, KITTI). Its metric priors are tuned for ground-level
+  perspective — near-nadir aerial imagery violates its assumptions more
+  severely than DA-V2's relative-depth formulation, which is at least
+  agnostic to camera pose.
+- **MiDaS v3.1 (DPT-Large):** Higher capacity than DA-V2-Small but no
+  aerial/satellite training data. The bottleneck is domain gap (nadir
+  cues absent from training), not model capacity — a larger model
+  trained on the same ground-level data would not fix this.
+- **DA-V2-Small was kept** because: (a) it has the cleanest fine-tuning
+  pathway (HuggingFace transformers + frozen-backbone recipe), (b) its
+  relative-depth output is better suited to our SRTM calibration
+  pipeline than ZoeDepth's metric output, and (c) the GAMUS fine-tuning
+  (§1 checkpoint) is already showing measurable improvement (Pearson r
+  0.240→0.393) on the target domain.
+
+A formal side-by-side benchmark was not run. The skip decision is based
+on architectural suitability analysis, not empirical comparison.
+
 ## 2. Pipeline
 
 Single RGB image in → metadata + Unity-ready artifacts out:

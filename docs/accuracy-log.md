@@ -1,3 +1,29 @@
+# DepthWizard Accuracy Log
+
+## Caveats (NFR11 / §17.3 — read before quoting any number)
+
+1. **Training data scope.** GAMUS (earthflow/GAMUS) contains US-only aerial
+   imagery from two cities: Washington DC and Philadelphia. All fine-tuning and
+   the majority of validation uses tiles from these two cities. Results may not
+   generalize to other geographies, terrain types, or sensor configurations.
+
+2. **In-city results are optimistic.** When train and validation tiles share the
+   same city (same flight, same sensor, similar land use), the model sees
+   near-identical distribution at evaluation time. The meaningful generalization
+   number is the **unseen-city (leave-one-city-out)** result — lead with that
+   when available, not the in-distribution validation RMSE.
+
+3. **No hilly-terrain LiDAR reference.** GAMUS covers flat-to-moderate urban and
+   suburban terrain. There is no paired LiDAR ground truth for high-relief areas
+   (Mussoorie, Arunachal). SRTM-based RMSE numbers for hilly regions reflect
+   SRTM alignment quality, not true DSM accuracy.
+
+4. **Headline accuracy should lead with the unseen-city result** once available
+   from the leave-one-city-out evaluation (Task 5 / FR15). Until then, do not
+   quote the in-distribution 18-tile number as a generalization claim.
+
+---
+
 ## GAMUS Benchmark -- 2026-09-16 23:05 UTC
 
 Dataset: [earthflow/GAMUS](https://huggingface.co/datasets/earthflow/GAMUS) (validation split, 18 tiles)
