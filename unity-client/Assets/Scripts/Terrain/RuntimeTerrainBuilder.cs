@@ -212,6 +212,50 @@ namespace DepthWizard.Terrain
                 terrainWidth, terrainLength,
                 relativeHeightScale, calibratedScale, calibratedBase, isCal);
 
+            // -----------------------------------------------------------------
+            // Step 7: LOD tuning (C8) — adapt terrain LOD settings to resolution
+            //
+            // Unity's terrain LOD is controlled by:
+            //   - heightmapPixelError: lower = more detail, higher = faster
+            //   - basemapDistance: beyond this distance, terrain uses a low-res
+            //     composite texture instead of the full splat map
+            //   - detailObjectDistance: cull distance for grass/detail objects
+            //
+            // For large heightmaps (1025+) we set more aggressive LOD to
+            // maintain 30+ fps. For smaller maps we keep high detail.
+            // -----------------------------------------------------------------
+            var terrainComp = terrainGo.GetComponent<UnityEngine.Terrain>();
+            if (terrainComp != null)
+            {
+                if (actualResolution >= 2049)
+                {
+                    // Large heightmap: aggressive LOD for performance
+                    terrainComp.heightmapPixelError = 8f;
+                    terrainComp.basemapDistance = 800f;
+                }
+                else if (actualResolution >= 1025)
+                {
+                    // Standard heightmap: balanced LOD
+                    terrainComp.heightmapPixelError = 5f;
+                    terrainComp.basemapDistance = 1200f;
+                }
+                else
+                {
+                    // Small heightmap: maximum detail
+                    terrainComp.heightmapPixelError = 3f;
+                    terrainComp.basemapDistance = 2000f;
+                }
+
+                // Common settings for all resolutions
+                terrainComp.detailObjectDistance = 150f;
+                terrainComp.treeBillboardDistance = 200f;
+                terrainComp.drawInstanced = true;
+
+                Debug.Log(
+                    $"[RuntimeTerrainBuilder] LOD tuned: pixelError={terrainComp.heightmapPixelError}, " +
+                    $"basemapDist={terrainComp.basemapDistance}, res={actualResolution}");
+            }
+
             Debug.Log(
                 $"[RuntimeTerrainBuilder] Terrain built: " +
                 $"{terrainWidth:F0}x{heightScale:F0}x{terrainLength:F0}m, " +

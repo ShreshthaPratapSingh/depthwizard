@@ -275,6 +275,7 @@ def _run_pipeline(input_path: Path, tmp_dir: str) -> JSONResponse:
     texture_b64 = _read_b64(metadata.get("texture_path"))
     confidence_b64 = _read_b64(metadata.get("confidence_mask_path"))
     dsm_b64 = _read_b64(metadata.get("dsm_geotiff_path"))
+    slope_b64 = _read_b64(metadata.get("slope_path"))
 
     # --- Build response mirroring process_image's metadata dict ---
     # We include the full metadata dict as-is, plus the encoded file
@@ -289,6 +290,7 @@ def _run_pipeline(input_path: Path, tmp_dir: str) -> JSONResponse:
         "texture_b64": texture_b64,
         "confidence_b64": confidence_b64,
         "dsm_b64": dsm_b64,
+        "slope_b64": slope_b64,
     }
 
     return JSONResponse(content=response)
@@ -378,6 +380,7 @@ def _run_pipeline_job(job_id: str, input_path: Path, tmp_dir: str) -> None:
         texture_b64 = _read_b64(metadata.get("texture_path"))
         confidence_b64 = _read_b64(metadata.get("confidence_mask_path"))
         dsm_b64 = _read_b64(metadata.get("dsm_geotiff_path"))
+        slope_b64 = _read_b64(metadata.get("slope_path"))
 
         result = {
             **metadata,
@@ -385,6 +388,7 @@ def _run_pipeline_job(job_id: str, input_path: Path, tmp_dir: str) -> None:
             "texture_b64": texture_b64,
             "confidence_b64": confidence_b64,
             "dsm_b64": dsm_b64,
+            "slope_b64": slope_b64,
         }
 
         with _jobs_lock:
@@ -401,5 +405,209 @@ def _run_pipeline_job(job_id: str, input_path: Path, tmp_dir: str) -> None:
                 _jobs[job_id]["error"] = str(exc)
                 _jobs[job_id]["progress_detail"] = traceback.format_exc()
 
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# POST /validate (FR21)
+# ---------------------------------------------------------------------------
+
+@app.post("/validate")
+async def validate(
+    predicted: UploadFile = File(...),
+    reference: UploadFile = File(...),
+):
+    """Compare a predicted DSM against a reference DSM.
+
+    Upload both as raster files (GeoTIFF or single-band image). Returns
+    RMSE, MAE, Pearson r, slope RMSE, and a base64-encoded error heatmap PNG.
+    """
+    tmp_dir = tempfile.mkdtemp(prefix="depthwizard_validate_")
+    try:
+        import numpy as np
+        from depth_pipeline.metrics import evaluate
+
+        pred_path = Path(tmp_dir) / "predicted"
+        ref_path = Path(tmp_dir) / "reference"
+        with open(pred_path, "wb") as f:
+            shutil.copyfileobj(predicted.file, f)
+        with open(ref_path, "wb") as f:
+            shutil.copyfileobj(reference.file, f)
+
+        # Read both as single-band arrays
+        pred_arr = _read_single_band(str(pred_path))
+        ref_arr = _read_single_band(str(ref_path))
+
+        if pred_arr is None or ref_arr is None:
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "detail": "Could not read one or both files as raster data."},
+            )
+
+        scores = evaluate(pred_arr, ref_arr)
+
+        # Build error heatmap (absolute difference, normalized to 0-255)
+        import cv2
+        from PIL import Image as PILImage
+        import io
+
+        if ref_arr.shape != pred_arr.shape:
+            ref_resized = cv2.resize(
+                ref_arr.astype(np.float32),
+                (pred_arr.shape[1], pred_arr.shape[0]),
+                interpolation=cv2.INTER_LINEAR,
+            )
+        else:
+            ref_resized = ref_arr.astype(np.float32)
+
+        # Scale+shift align prediction for error map
+        a, b = scores["fit_scale"], scores["fit_shift"]
+        pred_aligned = (a * pred_arr.astype(np.float64) + b).astype(np.float32)
+        error = np.abs(pred_aligned - ref_resized)
+
+        # Normalize error to 0-255 for visualization
+        emax = float(np.nanpercentile(error[np.isfinite(error)], 98)) if np.any(np.isfinite(error)) else 1.0
+        if emax < 1e-6:
+            emax = 1.0
+        error_u8 = np.clip(error / emax * 255.0, 0, 255).astype(np.uint8)
+
+        # Apply colormap (hot = high error)
+        error_colored = cv2.applyColorMap(error_u8, cv2.COLORMAP_JET)
+        error_rgb = cv2.cvtColor(error_colored, cv2.COLOR_BGR2RGB)
+
+        buf = io.BytesIO()
+        PILImage.fromarray(error_rgb).save(buf, format="PNG")
+        error_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+        return {
+            "status": "ok",
+            "rmse_m": scores["rmse_m"],
+            "mae_m": scores["mae_m"],
+            "pearson_r": scores["pearson_r"],
+            "slope_rmse": scores["slope_rmse"],
+            "n_valid_px": scores["n_valid_px"],
+            "fit_scale": scores["fit_scale"],
+            "fit_shift": scores["fit_shift"],
+            "error_heatmap_b64": error_b64,
+        }
+
+    except Exception as exc:
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "detail": str(exc), "traceback": traceback.format_exc()},
+        )
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _read_single_band(path: str):
+    """Read a file as a single-band float32 array. Tries rasterio, then PIL."""
+    import numpy as np
+    from pathlib import Path as P
+
+    ext = P(path).suffix.lower()
+    if ext in {".tif", ".tiff"}:
+        try:
+            import rasterio
+            with rasterio.open(path) as src:
+                return src.read(1).astype(np.float32)
+        except Exception:
+            pass
+
+    try:
+        from PIL import Image as PILImage
+        with PILImage.open(path) as im:
+            return np.asarray(im.convert("F"), dtype=np.float32)
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# POST /correct-gcp (FR18)
+# ---------------------------------------------------------------------------
+
+@app.post("/correct-gcp")
+async def correct_gcp(
+    file: UploadFile = File(...),
+    gcps: str = "",
+):
+    """Apply GCP correction to an uploaded image's predicted DSM.
+
+    The ``gcps`` parameter is a JSON string: a list of [lon, lat, elevation_m]
+    triples (for georeferenced images) or [col, row, value] triples.
+
+    Returns the corrected heightmap and correction metadata.
+    """
+    tmp_dir = tempfile.mkdtemp(prefix="depthwizard_gcp_")
+    try:
+        import numpy as np
+        from depth_pipeline.run import process_image
+        from depth_pipeline.geospatial.gcp import correct_with_gcps_geo, correct_with_gcps_pixel
+
+        # Parse GCPs
+        gcp_list = json.loads(gcps) if gcps else []
+        if not gcp_list or len(gcp_list) < 3:
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "detail": "Need at least 3 GCPs as [[x,y,z], ...]."},
+            )
+
+        # Save upload and run pipeline
+        filename = Path(file.filename or "upload.png").name
+        input_path = Path(tmp_dir) / filename
+        with open(input_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        output_dir = Path(tmp_dir) / "output"
+        metadata = process_image(str(input_path), str(output_dir))
+
+        if metadata.get("status") != "ok":
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "detail": "Pipeline failed", **metadata},
+            )
+
+        # Get elevation to correct
+        # Use calibrated elevation if available, else the heightmap
+        heightmap_path = metadata.get("heightmap_path")
+        if heightmap_path is None:
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "detail": "No heightmap produced."},
+            )
+
+        from PIL import Image as PILImage
+        with PILImage.open(heightmap_path) as im:
+            elev = np.asarray(im).astype(np.float32) / 65535.0
+
+        # Apply GCP correction
+        gcp_tuples = [tuple(g) for g in gcp_list]
+        bbox = metadata.get("bbox")
+        if bbox and metadata.get("is_georeferenced"):
+            result = correct_with_gcps_geo(elev, gcp_tuples, bbox)
+        else:
+            result = correct_with_gcps_pixel(elev, gcp_tuples)
+
+        response = {
+            "status": "ok" if result.ok else "error",
+            "gcp_correction": result.to_dict(),
+        }
+
+        if result.ok and result.elevation_m is not None:
+            # Encode corrected heightmap
+            corrected_u8 = np.clip(result.elevation_m * 255, 0, 255).astype(np.uint8)
+            import io
+            buf = io.BytesIO()
+            PILImage.fromarray(corrected_u8, mode="L").save(buf, format="PNG")
+            response["corrected_heightmap_b64"] = base64.b64encode(buf.getvalue()).decode("ascii")
+
+        return response
+
+    except Exception as exc:
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "detail": str(exc), "traceback": traceback.format_exc()},
+        )
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
