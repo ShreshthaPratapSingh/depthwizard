@@ -76,6 +76,8 @@ backend/data/samples/*
 !backend/data/samples/delhi_urban.tif
 !backend/data/samples/mussoorie_hilly.tif
 !backend/data/samples/chennai_coastal.tif
+!backend/data/samples/cached/
+!backend/data/samples/cached/**
 
 # Local eval test pairs (image + reference DEM copies for run_eval.py)
 eval_pairs/

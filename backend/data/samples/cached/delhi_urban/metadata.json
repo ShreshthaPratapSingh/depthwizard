@@ -1,0 +1,54 @@
+{
+  "heightmap_path": "C:\\Users\\user\\Desktop\\Projects\\SIH\\SIH internal Hackathon\\backend\\data\\samples\\cached\\delhi_urban\\heightmap.png",
+  "texture_path": "C:\\Users\\user\\Desktop\\Projects\\SIH\\SIH internal Hackathon\\backend\\data\\samples\\cached\\delhi_urban\\texture.png",
+  "confidence_mask_path": "C:\\Users\\user\\Desktop\\Projects\\SIH\\SIH internal Hackathon\\backend\\data\\samples\\cached\\delhi_urban\\confidence.png",
+  "width": 1025,
+  "height": 1025,
+  "relative_min": 0.0,
+  "relative_max": 0.9814249277114868,
+  "model_id": "depth-anything-v2-small-gamus",
+  "inference_ms": 388.4161000023596,
+  "status": "ok",
+  "warnings": [
+    "low calibration R\u00b2 (0.003); metric elevations may be unreliable",
+    "calibrated to SRTM (R\u00b2=0.003, n=8000)"
+  ],
+  "is_georeferenced": true,
+  "is_calibrated": true,
+  "min_elev_m": 218.6436004638672,
+  "max_elev_m": 222.0970916748047,
+  "r_squared": 0.003106892573330078,
+  "rmse_m": 10.471470521344479,
+  "mae_m": 8.248816028906008,
+  "sample_count": 8000,
+  "srtm_tile_id": "delhi_urban",
+  "warning": null,
+  "crs": "EPSG:4326",
+  "bbox": [
+    77.17992544499805,
+    28.57999059579099,
+    77.26005516834151,
+    28.660030487606036
+  ],
+  "srtm_aligned": true,
+  "srtm_coverage": 0.9980487804878049,
+  "calibration": {
+    "ok": true,
+    "model": "linear",
+    "degree": 1,
+    "coefficients": [
+      3.5188493469742816
+    ],
+    "intercept": 218.64359760840668,
+    "r2": 0.003106892573330078,
+    "rmse_m": 10.471470521344479,
+    "mae_m": 8.248816028906008,
+    "sample_count": 8000,
+    "warning": "low calibration R\u00b2 (0.003); metric elevations may be unreliable",
+    "srtm_tile_id": "delhi_urban",
+    "srtm_coverage": 0.9980487804878049,
+    "terrain": "urban"
+  },
+  "cached": true,
+  "sample_id": "delhi_urban"
+}
