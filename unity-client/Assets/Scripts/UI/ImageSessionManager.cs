@@ -123,6 +123,9 @@ namespace DepthWizard.UI
         /// <summary>Full parsed response from the last successful backend run.</summary>
         public ProcessResponse ResultResponse { get; private set; }
 
+        /// <summary>Decoded confidence mask PNG bytes from the last successful backend run.</summary>
+        public byte[] ResultConfidenceBytes { get; private set; }
+
         /// <summary>True when a valid backend result is cached and ready to build terrain.</summary>
         public bool HasResult => ResultHeightmapBytes != null && ResultHeightmapBytes.Length > 0
                                  && ResultResponse != null;
@@ -206,9 +209,25 @@ namespace DepthWizard.UI
             ResultHeightmapBytes = heightmapBytes;
             ResultTextureBytes = textureBytes;
             ResultResponse = response;
+
+            // Decode confidence mask (C6: wire confidence_b64 to overlay controller)
+            ResultConfidenceBytes = null;
+            if (response != null && !string.IsNullOrEmpty(response.confidence_b64))
+            {
+                try
+                {
+                    ResultConfidenceBytes = System.Convert.FromBase64String(response.confidence_b64);
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[ImageSessionManager] Failed to decode confidence_b64: {ex.Message}");
+                }
+            }
+
             Debug.Log($"[ImageSessionManager] Result cached: " +
                       $"heightmap={heightmapBytes?.Length / 1024}KB, " +
                       $"texture={textureBytes?.Length / 1024}KB, " +
+                      $"confidence={ResultConfidenceBytes?.Length / 1024}KB, " +
                       $"calibrated={response?.is_calibrated}");
         }
 
@@ -232,6 +251,7 @@ namespace DepthWizard.UI
             Height = 0;
             ResultHeightmapBytes = null;
             ResultTextureBytes = null;
+            ResultConfidenceBytes = null;
             ResultResponse = null;
 
             Debug.Log("[ImageSessionManager] Session cleared.");

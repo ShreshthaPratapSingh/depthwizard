@@ -229,18 +229,19 @@ namespace DepthWizard.Editor
         {
             var go = CreateUIObject("SubtitleText", parent);
             var rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(680, 30);
+            rt.sizeDelta = new Vector2(680, 52);
 
             var tmp = go.AddComponent<TextMeshProUGUI>();
-            tmp.text = "Single-Image Elevation Reconstruction & 3D Flythrough";
+            tmp.text = "Turn a single satellite image into a 3D terrain you can fly through.\n" +
+                       "<size=13><color=#FFFFFF55>Upload or drop an image below — no LiDAR, no stereo pairs, just one RGB photo.</color></size>";
             tmp.fontSize = 17;
             tmp.color = COL_TEXT_SECONDARY;
             tmp.alignment = TextAlignmentOptions.Center;
-            tmp.enableWordWrapping = false;
+            tmp.enableWordWrapping = true;
             tmp.raycastTarget = false;
 
             var le = go.AddComponent<LayoutElement>();
-            le.preferredHeight = 30;
+            le.preferredHeight = 52;
 
             return go;
         }

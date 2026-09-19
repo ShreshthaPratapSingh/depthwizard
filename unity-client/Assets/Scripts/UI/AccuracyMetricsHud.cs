@@ -118,12 +118,45 @@ namespace DepthWizard.UI
             string tile = string.IsNullOrEmpty(response.srtm_tile_id)
                 ? "—"
                 : response.srtm_tile_id;
+
+            // C7: Classify terrain type from response metadata
+            string terrainType = ClassifyTerrain(response);
+
             _body.text =
                 $"Tile  {tile}\n" +
-                $"R²    {response.r_squared:F3}\n" +
-                $"RMSE  {response.rmse_m:F1} m\n" +
-                $"MAE   {response.mae_m:F1} m\n" +
-                $"Elev  {response.min_elev_m:F0}–{response.max_elev_m:F0} m";
+                $"Type  {terrainType}\n" +
+                $"Fit R²  {response.r_squared:F3}\n" +
+                $"Fit RMSE  {response.rmse_m:F1} m\n" +
+                $"Elev  {response.min_elev_m:F0}–{response.max_elev_m:F0} m\n" +
+                "<size=10><color=#FFFFFF66>(calibration fit stats)</color></size>";
+        }
+
+        /// <summary>
+        /// Classify terrain type from the elevation range and warnings.
+        /// </summary>
+        private static string ClassifyTerrain(ProcessResponse r)
+        {
+            float range = r.max_elev_m - r.min_elev_m;
+
+            // Check warnings for terrain hints
+            if (r.warnings != null)
+            {
+                foreach (var w in r.warnings)
+                {
+                    string wl = w.ToLowerInvariant();
+                    if (wl.Contains("coastal") || wl.Contains("water"))
+                        return "Coastal";
+                    if (wl.Contains("forest") || wl.Contains("vegetation"))
+                        return "Forested";
+                }
+            }
+
+            // Heuristic from elevation range
+            if (range > 500f) return "Mountainous";
+            if (range > 100f) return "Hilly";
+            if (range > 30f)  return "Urban/Mixed";
+            if (range > 5f)   return "Flat Urban";
+            return "Low Relief";
         }
     }
 }

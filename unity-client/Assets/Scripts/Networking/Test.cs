@@ -109,6 +109,26 @@ public class TestTrigger : MonoBehaviour
         AccuracyMetricsHud.Show(response);
         CoordinateOverlay.Show(response);
 
+        // --- Confidence overlay (C6: wire confidence_b64 to overlay) ---
+        if (session.ResultConfidenceBytes != null && session.ResultConfidenceBytes.Length > 0)
+        {
+            var confOverlay = FindFirstObjectByType<ConfidenceOverlayController>();
+            if (confOverlay == null)
+            {
+                // Auto-create on the main camera if not already present
+                var cam = UnityEngine.Camera.main;
+                if (cam != null)
+                {
+                    confOverlay = cam.gameObject.AddComponent<ConfidenceOverlayController>();
+                }
+            }
+            if (confOverlay != null)
+            {
+                confOverlay.LoadConfidenceData(session.ResultConfidenceBytes);
+                Debug.Log($"[TestTrigger] Confidence overlay loaded ({session.ResultConfidenceBytes.Length / 1024}KB).");
+            }
+        }
+
         // --- Visual environment polish ---
         EnvironmentPolish.Apply();
 

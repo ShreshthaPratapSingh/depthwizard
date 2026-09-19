@@ -43,6 +43,8 @@ from .config import (
 from .export import export_artifacts, export_dsm_geotiff, resize_elevation01
 from .geospatial import apply_to_pipeline_metadata, resolve_elevation_mode
 from .postprocess import postprocess
+from .slope import compute_slope, export_slope_geotiff, export_slope_png
+from .tiling import needs_tiling, tile_and_infer
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +236,8 @@ def _error_metadata(warnings: list[str]) -> dict:
         "texture_path": None,
         "confidence_mask_path": None,
         "dsm_geotiff_path": None,
+        "slope_path": None,
+        "slope_geotiff_path": None,
         "width": None,
         "height": None,
         "relative_min": None,
@@ -248,7 +252,8 @@ def _error_metadata(warnings: list[str]) -> dict:
 
 def process_image(image_path: str, output_dir: str,
                   target_res: int = DEFAULT_TARGET_RES,
-                  on_stage: Callable[[str, str], None] | None = None) -> dict:
+                  on_stage: Callable[[str, str], None] | None = None,
+                  tile: bool = False) -> dict:
     """Process a single image into heightmap/texture/confidence + metadata.
 
     ``infer_depth`` must already be [0, 1], higher = higher elevation.
@@ -264,7 +269,7 @@ def process_image(image_path: str, output_dir: str,
     """
     warnings: list[str] = []
     try:
-        return _run_pipeline(image_path, output_dir, target_res, on_stage, warnings)
+        return _run_pipeline(image_path, output_dir, target_res, on_stage, warnings, tile=tile)
     except _InputError as exc:
         # Clean, user-facing validation failure — the message is already safe.
         logger.warning("process_image: invalid input %r: %s", image_path, exc)
@@ -280,7 +285,8 @@ def process_image(image_path: str, output_dir: str,
 
 def _run_pipeline(image_path: str, output_dir: str, target_res: int,
                   on_stage: Callable[[str, str], None] | None,
-                  warnings: list[str]) -> dict:
+                  warnings: list[str],
+                  tile: bool = False) -> dict:
     """The happy path. Any exception here is caught by ``process_image``."""
     def _stage(name: str, detail: str = "") -> None:
         if on_stage is not None:
@@ -296,10 +302,24 @@ def _run_pipeline(image_path: str, output_dir: str, target_res: int,
     out.mkdir(parents=True, exist_ok=True)
 
     source_rgb = _read_rgb(image_path)
-    source_rgb = _maybe_downscale(source_rgb, warnings)
 
     _stage("inferring", "running depth model")
-    elevation01 = infer_depth(source_rgb)
+    h, w = source_rgb.shape[:2]
+    if tile and needs_tiling(h, w, MAX_INPUT_PIXELS):
+        # Full-resolution tiling (FR19): tile with overlap instead of
+        # downscaling so large images retain their native detail.
+        warnings.append(
+            f"image {w}x{h} exceeds max resolution; using tiled inference"
+        )
+        elevation01 = tile_and_infer(
+            source_rgb, infer_depth,
+            on_tile=lambda i, t: _stage(
+                "inferring", f"tile {i}/{t}"
+            ),
+        )
+    else:
+        source_rgb = _maybe_downscale(source_rgb, warnings)
+        elevation01 = infer_depth(source_rgb)
     inference_ms = get_last_inference_ms()
 
     # Smooth ridgelines, flatten water, and build the confidence mask before
@@ -345,6 +365,8 @@ def _run_pipeline(image_path: str, output_dir: str, target_res: int,
             "status": "ok",
             "warnings": warnings,
             "dsm_geotiff_path": None,
+            "slope_path": None,
+            "slope_geotiff_path": None,
         },
         mode,
     )
@@ -359,6 +381,22 @@ def _run_pipeline(image_path: str, output_dir: str, target_res: int,
         )
         if dsm_path is not None:
             metadata["dsm_geotiff_path"] = str(dsm_path)
+
+    # Slope raster (FR20) — computed from the best available elevation.
+    slope_elev = mode["elevation_m"] if mode["elevation_m"] is not None else elev_resized
+    slope_deg = compute_slope(slope_elev)
+    slope_png_path = export_slope_png(slope_deg, out)
+    if slope_png_path is not None:
+        metadata["slope_path"] = str(slope_png_path)
+    # GeoTIFF slope only when georeferenced.
+    if mode["is_georeferenced"] and mode["georef_crs"] and mode["georef_bbox"]:
+        slope_tif_path = export_slope_geotiff(
+            slope_deg, crs=mode["georef_crs"],
+            bbox=mode["georef_bbox"], output_dir=out,
+        )
+        if slope_tif_path is not None:
+            metadata["slope_geotiff_path"] = str(slope_tif_path)
+
     (out / METADATA_NAME).write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )
