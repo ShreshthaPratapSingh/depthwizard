@@ -50,10 +50,12 @@ logger = logging.getLogger(__name__)
 _MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
 _BASE_DIR = _MODELS_ROOT / "depth-anything-v2-small"
 _FINETUNED_DIR = _MODELS_ROOT / "depth-anything-v2-small-gamus"
+_FINETUNED_V3_DIR = _MODELS_ROOT / "gamus-v3-stageA"
 
 _BACKBONE_CHOICES = {
     "base": (_BASE_DIR, "depth-anything-v2-small"),
     "gamus-finetuned": (_FINETUNED_DIR, "depth-anything-v2-small-gamus"),
+    "gamus-v3": (_FINETUNED_V3_DIR, "gamus-v3-stageA"),
 }
 
 def _resolve_backbone() -> tuple[Path, str]:
@@ -61,6 +63,8 @@ def _resolve_backbone() -> tuple[Path, str]:
     env = os.environ.get("DEPTHWIZARD_BACKBONE", "").strip().lower()
     if env in _BACKBONE_CHOICES:
         choice = env
+    elif _FINETUNED_V3_DIR.is_dir() and (_FINETUNED_V3_DIR / "model.safetensors").is_file():
+        choice = "gamus-v3"
     elif _FINETUNED_DIR.is_dir() and (_FINETUNED_DIR / "model.safetensors").is_file():
         choice = "gamus-finetuned"
     else:
@@ -140,6 +144,18 @@ def _load():
         )
         model.to(device).eval()
         load_ms = (time.perf_counter() - t0) * 1000.0
+
+        # Log checkpoint details for diagnosing stale-model issues
+        ckpt_path = MODEL_DIR / "model.safetensors"
+        if ckpt_path.is_file():
+            import datetime
+            stat = ckpt_path.stat()
+            mtime = datetime.datetime.fromtimestamp(stat.st_mtime)
+            logger.info(
+                "Checkpoint: %s  (%.1f MB, modified %s)",
+                ckpt_path, stat.st_size / 1e6, mtime.strftime("%Y-%m-%d %H:%M:%S"),
+            )
+
         logger.info(
             "Loaded %s on %s (%s) in %.0f ms", MODEL_ID, device, dtype, load_ms
         )

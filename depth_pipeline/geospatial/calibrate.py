@@ -235,6 +235,20 @@ def calibrate_to_srtm(
 _COMPOSITE_LOWPASS_SIGMA = 7.0   # Gaussian sigma for SRTM terrain smoothing
 _COMPOSITE_MIN_R2 = 0.10        # minimum R² for nDSM component to be useful
 
+# If the calibrated nDSM std is less than this fraction of SRTM lowpass std,
+# the linear fit has effectively zeroed-out the model's contribution.
+# Switch to variance-matched scaling to preserve fine detail.
+_NDSM_DOMINANCE_THRESHOLD = 0.05
+
+# Minimum target std (meters) for hybrid nDSM scaling. SRTM at 30m can't
+# resolve buildings, so its nDSM (SRTM_raw − SRTM_lowpass) is just noise
+# (typically 1-2m std). Real urban above-ground variation is 5-30m.
+# This floor ensures buildings are visually prominent in the terrain.
+_MIN_HYBRID_NDSM_STD = 5.0
+
+import logging as _logging
+_cal_logger = _logging.getLogger(__name__)
+
 
 def calibrate_composite(
     relative_depth: np.ndarray,
@@ -252,8 +266,11 @@ def calibrate_composite(
     3. Calibrates only the nDSM component
     4. Adds them: DSM = SRTM_lowpass + calibrated_nDSM
 
-    The rationale: SRTM provides macro terrain (which DA-V2 can't capture
-    from nadir), and DA-V2 provides fine detail (buildings, trees).
+    **Hybrid scaling (Option B):** When the linear fit produces a negligible
+    nDSM contribution (because SRTM at 30m can't resolve buildings, so the
+    nDSM reference is noise), the model's output is instead variance-matched
+    to the nDSM reference statistics. This preserves the model's fine
+    structural detail (buildings, trees) while keeping SRTM's macro terrain.
 
     Falls back to the global fit (``calibrate_to_srtm``) if the composite
     approach fails or produces worse results.
@@ -327,6 +344,58 @@ def calibrate_composite(
             rel[finite_rel].reshape(-1, 1)
         )
 
+        # -----------------------------------------------------------------
+        # Step 4b: Hybrid scaling — detect negligible nDSM contribution
+        # -----------------------------------------------------------------
+        # If the linear fit produced an nDSM term that barely varies
+        # compared to the SRTM lowpass, the fit has effectively zeroed
+        # out the model's fine detail. This happens when SRTM can't
+        # resolve buildings (30m resolution), so the nDSM reference is
+        # noise, not real above-ground heights.
+        #
+        # Fix: replace the negligible linear-fit nDSM with a variance-
+        # matched scaling of the depth model's output. This preserves
+        # the model's structural detail while keeping statistically
+        # plausible above-ground height magnitudes.
+        # -----------------------------------------------------------------
+        srtm_lp_valid = srtm_lowpass[~nodata_mask]
+        ndsm_cal_valid = ndsm_calibrated[finite_rel & ~nodata_mask]
+        srtm_lp_std = float(np.std(srtm_lp_valid)) if srtm_lp_valid.size > 0 else 1.0
+        ndsm_cal_std = float(np.std(ndsm_cal_valid)) if ndsm_cal_valid.size > 0 else 0.0
+
+        used_hybrid = False
+        if srtm_lp_std > 0 and (ndsm_cal_std / srtm_lp_std) < _NDSM_DOMINANCE_THRESHOLD:
+            # Linear fit contribution is negligible — switch to hybrid
+            ndsm_ref_valid = ndsm_ref[~nodata_mask]
+            ndsm_ref_std = float(np.std(ndsm_ref_valid))
+            ndsm_ref_mean = float(np.mean(ndsm_ref_valid))
+
+            depth_valid = rel[finite_rel]
+            depth_std = float(np.std(depth_valid))
+            depth_mean = float(np.mean(depth_valid))
+
+            if depth_std > 1e-9 and ndsm_ref_std > 1e-9:
+                # Use at least _MIN_HYBRID_NDSM_STD as target — SRTM's
+                # nDSM std is just noise at 30m, real buildings are taller.
+                target_std = max(ndsm_ref_std, _MIN_HYBRID_NDSM_STD)
+                scale_factor = target_std / depth_std
+                ndsm_calibrated[finite_rel] = (
+                    (rel[finite_rel] - depth_mean) * scale_factor + ndsm_ref_mean
+                )
+                used_hybrid = True
+                _cal_logger.info(
+                    "Composite hybrid scaling activated: "
+                    "linear nDSM ratio=%.4f (< %.2f threshold), "
+                    "scale_factor=%.2f, target_std=%.2fm "
+                    "(nDSM_ref_std=%.2fm, min=%.2fm)",
+                    ndsm_cal_std / srtm_lp_std,
+                    _NDSM_DOMINANCE_THRESHOLD,
+                    scale_factor,
+                    target_std,
+                    ndsm_ref_std,
+                    _MIN_HYBRID_NDSM_STD,
+                )
+
         elevation = srtm_lowpass + ndsm_calibrated
 
         # Compute overall RMSE against original SRTM
@@ -342,16 +411,17 @@ def calibrate_composite(
         )
 
         warn = None
+        model_label = "composite-hybrid" if used_hybrid else "composite"
         if not math.isfinite(r2_final) or r2_final < 0.5:
             warn = (
-                f"low composite calibration R² ({r2_final:.3f}); metric "
+                f"low {model_label} calibration R² ({r2_final:.3f}); metric "
                 "elevations may be unreliable"
             )
 
         return {
             "ok": True,
             "elevation_m": elevation.astype(np.float32),
-            "model": "composite",
+            "model": model_label,
             "degree": 1,
             "coefficients": [float(c) for c in lr.coef_],
             "intercept": float(lr.intercept_),
