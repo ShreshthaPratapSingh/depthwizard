@@ -15,13 +15,19 @@ namespace DepthWizard.Terrain
 {
     /// <summary>
     /// Runtime controller that switches terrain between relative and metric
-    /// elevation display. Rescales TerrainData.size.y and repositions the
-    /// terrain vertically when switching modes.
+    /// elevation display. Rescales TerrainData.size (XZ and Y) and repositions
+    /// the terrain vertically when switching modes.
     /// </summary>
     public class TerrainElevationController : MonoBehaviour
     {
-        private float terrainWidth;
-        private float terrainLength;
+        // Absolute (geo) XZ dimensions — real-world meters from bbox
+        private float absoluteWidth;
+        private float absoluteLength;
+
+        // Relative XZ dimensions — pixel-proportional (1 m/px)
+        private float relativeWidth;
+        private float relativeLength;
+
         private float relativeScale;
         private float calibratedScale;
         private float calibratedBaseAltitude;
@@ -46,12 +52,15 @@ namespace DepthWizard.Terrain
         /// Called by RuntimeTerrainBuilder.Build() after terrain creation.
         /// </summary>
         public void Init(
-            float width, float length,
+            float absWidth, float absLength,
+            float relWidth, float relLength,
             float relScale, float calScale, float calBase,
             bool calibrated)
         {
-            terrainWidth = width;
-            terrainLength = length;
+            absoluteWidth  = absWidth;
+            absoluteLength = absLength;
+            relativeWidth  = relWidth;
+            relativeLength = relLength;
             relativeScale = Mathf.Max(relScale, 1f);
             calibratedScale = Mathf.Max(calScale, 1f);
             calibratedBaseAltitude = calBase;
@@ -106,20 +115,34 @@ namespace DepthWizard.Terrain
 
             float scale;
             float yPos;
+            float width;
+            float length;
+
             if (useAbsolute)
             {
-                scale = calibratedScale;
-                yPos = calibratedBaseAltitude;
+                scale  = calibratedScale;
+                yPos   = calibratedBaseAltitude;
+                width  = absoluteWidth;
+                length = absoluteLength;
             }
             else
             {
-                scale = relativeScale;
-                yPos = 0f;
+                scale  = relativeScale;
+                yPos   = 0f;
+                width  = relativeWidth;
+                length = relativeLength;
             }
 
-            terrain.terrainData.size = new Vector3(
-                terrainWidth, scale, terrainLength);
+            terrain.terrainData.size = new Vector3(width, scale, length);
             transform.position = new Vector3(transform.position.x, yPos, transform.position.z);
+
+            // Update texture tiling to match new terrain size
+            if (terrain.terrainData.terrainLayers != null &&
+                terrain.terrainData.terrainLayers.Length > 0)
+            {
+                var layer = terrain.terrainData.terrainLayers[0];
+                layer.tileSize = new Vector2(width, length);
+            }
 
             // Force collider rebuild after resizing
             var collider = GetComponent<TerrainCollider>();
@@ -131,7 +154,7 @@ namespace DepthWizard.Terrain
 
             Debug.Log(
                 $"[TerrainElevationController] Mode: {(useAbsolute ? "absolute" : "relative")}, " +
-                $"heightScale={scale:F1}m, baseY={yPos:F1}m");
+                $"size={width:F1}x{scale:F1}x{length:F1}m, baseY={yPos:F1}m");
         }
     }
 }

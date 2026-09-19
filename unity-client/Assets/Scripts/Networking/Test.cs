@@ -93,16 +93,44 @@ public class TestTrigger : MonoBehaviour
             Debug.Log($"[TestTrigger] Calibrated: {response.min_elev_m:F1}m – {response.max_elev_m:F1}m");
         }
 
+        // Compute dynamic terrain extent from bbox or pixel dimensions
+        ComputeTerrainExtent(response, out float geoWidth, out float geoLength,
+                             out float relWidth, out float relLength);
+
+        // Use geo extent for initial build (absolute mode if calibrated)
+        float terrainWidth  = (response.is_georeferenced && geoWidth > 0f)  ? geoWidth  : relWidth;
+        float terrainLength = (response.is_georeferenced && geoLength > 0f) ? geoLength : relLength;
+
+        // -----------------------------------------------------------------
+        // Adaptive vertical exaggeration.
+        // Goal: always achieve a visually useful height:width ratio (~12%).
+        // Flat urban terrain (Delhi: 67m height / 8km width = 0.8%) gets
+        // boosted ~14×.  Hilly terrain (Mussoorie: 800m / 5km = 16%) stays
+        // at 1× (no exaggeration). This adapts to every terrain type.
+        // -----------------------------------------------------------------
+        const float TARGET_HEIGHT_RATIO = 0.12f; // 12% of terrain width
+        float maxExtent = Mathf.Max(terrainWidth, terrainLength);
+        float currentRatio = (maxExtent > 0f) ? (scale / maxExtent) : 1f;
+        float exaggeration = (currentRatio > 0f)
+            ? Mathf.Clamp(TARGET_HEIGHT_RATIO / currentRatio, 1f, 20f)
+            : 1f;
+        float exaggeratedScale = scale * exaggeration;
+        Debug.Log($"[TestTrigger] Terrain dims: {terrainWidth:F0}×{terrainLength:F0}m, " +
+                  $"height={scale:F1}m, ratio={currentRatio*100:F1}%, " +
+                  $"exaggeration={exaggeration:F1}× → {exaggeratedScale:F1}m");
+
         RuntimeTerrainBuilder.Build(
             heightmapPngBytes: session.ResultHeightmapBytes,
             texturePngBytes: session.ResultTextureBytes,
             expectedResolution: response.width,
-            terrainWidth: 500f,
-            terrainLength: 500f,
-            heightScale: scale,
+            terrainWidth: terrainWidth,
+            terrainLength: terrainLength,
+            heightScale: exaggeratedScale,
             baseAltitude: baseAltitude,
             relativeHeightScale: 200f,
-            metadata: response
+            metadata: response,
+            relativeWidth: relWidth,
+            relativeLength: relLength
         );
 
         // --- HUD overlays ---
@@ -133,6 +161,61 @@ public class TestTrigger : MonoBehaviour
         EnvironmentPolish.Apply();
 
         Debug.Log($"[TestTrigger] Terrain built. Calibrated={response.is_calibrated}, Model={response.model_id}");
+    }
+
+    /// <summary>
+    /// Compute terrain XZ extent from the backend response.
+    /// - geoWidth/geoLength: real-world meters from bbox (0 if not georeferenced)
+    /// - relWidth/relLength: pixel-proportional fallback (1 meter per pixel)
+    /// Uses the same degrees-to-meters formula as GeoTiffHeightmapReader.cs.
+    /// </summary>
+    private static void ComputeTerrainExtent(
+        ProcessResponse response,
+        out float geoWidth, out float geoLength,
+        out float relWidth, out float relLength)
+    {
+        const float METERS_PER_DEGREE_LAT = 111320f;
+
+        // Relative mode: proportional to pixel dimensions (1 m/px)
+        relWidth  = Mathf.Max(response.width,  64f);
+        relLength = Mathf.Max(response.height, 64f);
+
+        // Absolute mode: compute from bbox if available
+        geoWidth  = 0f;
+        geoLength = 0f;
+
+        if (response.bbox != null && response.bbox.Length == 4 && response.is_georeferenced)
+        {
+            float west  = response.bbox[0];
+            float south = response.bbox[1];
+            float east  = response.bbox[2];
+            float north = response.bbox[3];
+
+            float centerLat = (south + north) * 0.5f;
+            float latRad = centerLat * Mathf.Deg2Rad;
+            float metersPerDegreeLon = METERS_PER_DEGREE_LAT * Mathf.Cos(latRad);
+
+            geoWidth  = Mathf.Abs(east - west)  * metersPerDegreeLon;
+            geoLength = Mathf.Abs(north - south) * METERS_PER_DEGREE_LAT;
+
+            // Sanity check — guard against nonsensical values
+            if (geoWidth <= 0f || geoLength <= 0f ||
+                float.IsNaN(geoWidth) || float.IsNaN(geoLength) ||
+                float.IsInfinity(geoWidth) || float.IsInfinity(geoLength))
+            {
+                Debug.LogWarning(
+                    $"[TestTrigger] Computed geo extent ({geoWidth:F1}×{geoLength:F1}) " +
+                    "is invalid. Falling back to pixel-proportional.");
+                geoWidth  = 0f;
+                geoLength = 0f;
+            }
+            else
+            {
+                Debug.Log(
+                    $"[TestTrigger] Geo extent: {geoWidth:F1}×{geoLength:F1}m " +
+                    $"(bbox: [{west:F6}, {south:F6}, {east:F6}, {north:F6}])");
+            }
+        }
     }
 }
 

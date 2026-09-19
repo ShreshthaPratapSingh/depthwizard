@@ -51,6 +51,11 @@ backend/data/srtm_tiles/*.tiff
 !backend/data/srtm_tiles/regions.json
 *.geotiff
 
+# GAMUS dataset cache & HDF5 files (never commit)
+backend/data/gamus_cache/
+*.h5
+*.hdf5
+
 # Model weights: pulled via scripts/download_weights.py; commit only the lockfile
 models/*
 !models/pinned_revisions.json

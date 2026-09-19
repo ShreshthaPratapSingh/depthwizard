@@ -15,8 +15,8 @@ RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
   m_Fog: 1
-  m_FogColor: {r: 0.4339623, g: 0.30822602, b: 0.25587398, a: 1}
-  m_FogMode: 3
+  m_FogColor: {r: 0.16037738, g: 0.14288945, b: 0.13541298, a: 1}
+  m_FogMode: 2
   m_FogDensity: 0.0005
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 2100000, guid: a4be220830e90ea4eb88b48b7fd376ce, type: 2}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 19638e178794b744d916445b24424150, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -136,6 +136,9 @@ GameObject:
   - component: {fileID: 330585550}
   - component: {fileID: 330585551}
   - component: {fileID: 330585552}
+  - component: {fileID: 330585554}
+  - component: {fileID: 330585553}
+  - component: {fileID: 330585555}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -345,6 +348,42 @@ MonoBehaviour:
   heightFactor: 0.5
   radiusFactor: 0.6
   heightVariation: 0.15
+--- !u!114 &330585553
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 22b64dbbda4a0514a826a4b9d7e21b8f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DepthWizard.UI.TerrainProbe
+--- !u!114 &330585554
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43027a7b1a2fd054087ba681629048cd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DepthWizard.UI.ConfidenceOverlayController
+--- !u!114 &330585555
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db70aa1787710304e85c475ef2cb91a9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DepthWizard.UI.LoadNewImageButton
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -515,8 +554,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1a5456acf795620419d8b4a0a7c47e0b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TestTrigger
-  sampleId: 
-  testImagePath: 
 --- !u!114 &702276989
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -698,5 +735,4 @@ SceneRoots:
   - {fileID: 410087041}
   - {fileID: 832575519}
   - {fileID: 702276990}
-  - {fileID: 100000002}
   - {fileID: 1345940221}

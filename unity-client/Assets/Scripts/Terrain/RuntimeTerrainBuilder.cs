@@ -59,6 +59,8 @@ namespace DepthWizard.Terrain
         /// <param name="baseAltitude">Vertical offset for the terrain (min_elev_m when calibrated, 0 otherwise).</param>
         /// <param name="relativeHeightScale">Relative height scale in meters for uncalibrated mode.</param>
         /// <param name="metadata">Response metadata (for logging; may be null).</param>
+        /// <param name="relativeWidth">Terrain XZ width for relative mode (pixel-proportional). Defaults to terrainWidth.</param>
+        /// <param name="relativeLength">Terrain XZ length for relative mode (pixel-proportional). Defaults to terrainLength.</param>
         public static void Build(
             byte[] heightmapPngBytes,
             byte[] texturePngBytes,
@@ -68,7 +70,9 @@ namespace DepthWizard.Terrain
             float heightScale,
             float baseAltitude = 0f,
             float relativeHeightScale = 200f,
-            Networking.ProcessResponse metadata = null)
+            Networking.ProcessResponse metadata = null,
+            float relativeWidth = 0f,
+            float relativeLength = 0f)
         {
             // -----------------------------------------------------------------
             // Step 1: Decode the 16-bit heightmap PNG into a float[,] array
@@ -141,6 +145,8 @@ namespace DepthWizard.Terrain
             {
                 TerrainLayer layer = new TerrainLayer();
                 layer.diffuseTexture = texture;
+                layer.smoothness = 0f;
+                layer.metallic = 0f;
                 // Tile size = full terrain extent so texture maps 1:1
                 layer.tileSize = new Vector2(terrainWidth, terrainLength);
                 layer.tileOffset = Vector2.zero;
@@ -205,11 +211,16 @@ namespace DepthWizard.Terrain
             float calibratedScale = isCal ? heightScale : relativeHeightScale;
             float calibratedBase = isCal ? baseAltitude : 0f;
 
+            // Default relative dims to terrainWidth/Length if not specified
+            float relW = relativeWidth  > 0f ? relativeWidth  : terrainWidth;
+            float relL = relativeLength > 0f ? relativeLength : terrainLength;
+
             var ctrl = terrainGo.GetComponent<TerrainElevationController>();
             if (ctrl == null)
                 ctrl = terrainGo.AddComponent<TerrainElevationController>();
             ctrl.Init(
                 terrainWidth, terrainLength,
+                relW, relL,
                 relativeHeightScale, calibratedScale, calibratedBase, isCal);
 
             // -----------------------------------------------------------------
@@ -398,7 +409,27 @@ namespace DepthWizard.Terrain
             Shader shader = Shader.Find(TERRAIN_SHADER_NAME);
             if (shader != null)
             {
-                terrain.materialTemplate = new Material(shader);
+                Material mat = new Material(shader);
+
+                // ---- Kill ALL specular / smoothness sources ----
+
+                // URP Terrain/Lit uses per-splat properties, not global _Smoothness
+                for (int i = 0; i < 8; i++)
+                {
+                    mat.SetFloat($"_Smoothness{i}", 0f);
+                    mat.SetFloat($"_Metallic{i}", 0f);
+                }
+                // Also set the global ones in case any fallback path reads them
+                mat.SetFloat("_Smoothness", 0f);
+                mat.SetFloat("_Metallic", 0f);
+
+                // Disable specular highlights and environment reflections via shader keywords
+                mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+                mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+                mat.SetFloat("_SpecularHighlights", 0f);
+                mat.SetFloat("_EnvironmentReflections", 0f);
+
+                terrain.materialTemplate = mat;
             }
             else
             {
@@ -406,6 +437,9 @@ namespace DepthWizard.Terrain
                     $"[RuntimeTerrainBuilder] Shader '{TERRAIN_SHADER_NAME}' not found. " +
                     "Terrain may render with default material.");
             }
+
+            // Disable reflection probes on the terrain renderer itself
+            terrain.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
         }
 
         // -----------------------------------------------------------------

@@ -242,8 +242,12 @@ class GAMUSDataset(Dataset):
 # Data selection
 # ===================================================================
 
-def select_training_tiles(n_tiles: int) -> list[str]:
-    """Select a balanced set of tile IDs from the GAMUS train split."""
+def select_training_tiles(n_tiles: int, hold_out_city: str | None = None) -> list[str]:
+    """Select a balanced set of tile IDs from the GAMUS train split.
+
+    If *hold_out_city* is set (e.g. 'DC'), all tiles from that city are
+    excluded from training for leave-one-city-out evaluation.
+    """
     from huggingface_hub import list_repo_files
 
     logger.info("Listing GAMUS train split files...")
@@ -254,6 +258,13 @@ def select_training_tiles(n_tiles: int) -> list[str]:
     # Only include tiles whose filename ends with _RGB.h5 (some NYC tiles use _IMG.h5)
     train_imgs = [f for f in train_imgs if f.endswith("_RGB.h5")]
     all_ids = [f.split("/")[-1].replace("_RGB.h5", "") for f in train_imgs]
+
+    # Exclude held-out city
+    if hold_out_city:
+        prefix = hold_out_city.upper() + "_"
+        excluded = [i for i in all_ids if i.startswith(prefix)]
+        all_ids = [i for i in all_ids if not i.startswith(prefix)]
+        logger.info("Hold-out city %s: excluded %d tiles", hold_out_city.upper(), len(excluded))
 
     dc_ids = [i for i in all_ids if i.startswith("DC_")]
     phl_ids = [i for i in all_ids if i.startswith("PHL_")]
@@ -322,6 +333,8 @@ def train(
     grad_accum: int = 2,
     output_dir: Path | None = None,
     use_augment: bool = False,
+    hold_out_city: str | None = None,
+    checkpoint_every: int = 1,
 ) -> Path:
     """Run the fine-tuning loop. Returns path to saved checkpoint."""
     from transformers import AutoImageProcessor, AutoModelForDepthEstimation
@@ -331,7 +344,7 @@ def train(
     logger.info("Device: %s, dtype: %s", device, dtype)
 
     # 1. Select and download tiles
-    tile_ids = select_training_tiles(n_tiles)
+    tile_ids = select_training_tiles(n_tiles, hold_out_city=hold_out_city)
     logger.info("Pre-downloading %d tiles...", len(tile_ids))
     predownload_tiles(tile_ids, GAMUS_TRAIN_SPLIT)
 
@@ -381,6 +394,9 @@ def train(
     )
 
     scaler = torch.amp.GradScaler(enabled=(device.type == "cuda"))
+
+    # Resolve output directory before training starts (needed for per-epoch checkpoints)
+    save_dir = output_dir or FINETUNED_DIR
 
     # 6. Training loop
     logger.info("Starting training: %d epochs, %d tiles, batch=%d, accum=%d",
@@ -453,8 +469,15 @@ def train(
         if avg_loss < best_loss:
             best_loss = avg_loss
 
-    # 7. Save checkpoint
-    save_dir = output_dir or FINETUNED_DIR
+        # Per-epoch checkpoint
+        if checkpoint_every > 0 and epoch % checkpoint_every == 0:
+            epoch_dir = save_dir / f"epoch_{epoch}"
+            epoch_dir.mkdir(parents=True, exist_ok=True)
+            model.save_pretrained(str(epoch_dir))
+            processor.save_pretrained(str(epoch_dir))
+            logger.info("Epoch %d checkpoint saved to %s", epoch, epoch_dir)
+
+    # 7. Save final checkpoint
     save_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(str(save_dir))
     processor.save_pretrained(str(save_dir))
@@ -490,6 +513,14 @@ def main(argv: list[str] | None = None) -> int:
         "--augment", action="store_true", default=False,
         help="Enable degradation augmentation (blur, noise, jitter, flips)",
     )
+    parser.add_argument(
+        "--hold-out-city", type=str, default=None,
+        help="Exclude all tiles from this city (e.g. 'DC') for leave-one-city-out eval",
+    )
+    parser.add_argument(
+        "--checkpoint-every", type=int, default=1,
+        help="Save checkpoint every N epochs (default: 1)",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -509,6 +540,8 @@ def main(argv: list[str] | None = None) -> int:
             grad_accum=args.grad_accum,
             output_dir=out_dir,
             use_augment=args.augment,
+            hold_out_city=args.hold_out_city,
+            checkpoint_every=args.checkpoint_every,
         )
         print(f"\nCheckpoint saved to: {ckpt_dir}")
         return 0
