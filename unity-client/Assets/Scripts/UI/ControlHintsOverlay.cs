@@ -46,16 +46,6 @@ namespace DepthWizard.UI
         [SerializeField] private float fadeDuration = 1f;
 
         // ---------------------------------------------------------------------
-        // Theme
-        // ---------------------------------------------------------------------
-
-        private static readonly Color COL_BG       = new Color(0.04f, 0.06f, 0.10f, 0.65f);
-        private static readonly Color COL_KEY      = new Color(0f, 0.898f, 1f, 1f);       // #00E5FF
-        private static readonly Color COL_DESC     = new Color(0.85f, 0.87f, 0.90f, 1f);  // light grey
-        private static readonly Color COL_DIVIDER  = new Color(1f, 1f, 1f, 0.08f);
-        private static readonly Color COL_MODE_TAG = new Color(0f, 0.898f, 1f, 0.35f);
-
-        // ---------------------------------------------------------------------
         // Hint data
         // ---------------------------------------------------------------------
 
@@ -161,21 +151,21 @@ namespace DepthWizard.UI
 
             // Size is set by ContentSizeFitter
             var bgImage = panelGo.AddComponent<Image>();
-            bgImage.color = COL_BG;
+            bgImage.color = HudTheme.COL_BG_PANEL;
 
-            // Rounded corners effect via a slight outline
+            // Subtle border
             var outline = panelGo.AddComponent<Outline>();
-            outline.effectColor = new Color(1f, 1f, 1f, 0.04f);
+            outline.effectColor = HudTheme.COL_BORDER;
             outline.effectDistance = new Vector2(1f, 1f);
 
             // CanvasGroup for alpha fading
             _canvasGroup = panelGo.AddComponent<CanvasGroup>();
             _canvasGroup.alpha = 1f;
 
-            // --- Vertical layout ---
+            // --- Vertical layout (FIX: increased spacing from 3→6, padding 10→12) ---
             var vlg = panelGo.AddComponent<VerticalLayoutGroup>();
-            vlg.padding = new RectOffset(14, 14, 10, 10);
-            vlg.spacing = 3f;
+            vlg.padding = new RectOffset(14, 14, 12, 12);
+            vlg.spacing = 6f;
             vlg.childAlignment = TextAnchor.UpperLeft;
             vlg.childControlWidth = true;
             vlg.childControlHeight = true;
@@ -190,15 +180,15 @@ namespace DepthWizard.UI
             var modeLabelGo = new GameObject("ModeLabel");
             modeLabelGo.transform.SetParent(panelGo.transform, false);
             _modeLabel = modeLabelGo.AddComponent<TextMeshProUGUI>();
-            _modeLabel.fontSize = 11f;
-            _modeLabel.color = COL_MODE_TAG;
+            _modeLabel.fontSize = HudTheme.FONT_SMALL;
+            _modeLabel.color = HudTheme.COL_ACCENT_DIM;
             _modeLabel.fontStyle = FontStyles.Bold | FontStyles.UpperCase;
             _modeLabel.text = "FREE-FLY MODE";
             _modeLabel.alignment = TextAlignmentOptions.Left;
             _modeLabel.margin = new Vector4(0, 0, 0, 4f);
 
             var modeLE = modeLabelGo.AddComponent<LayoutElement>();
-            modeLE.preferredHeight = 16f;
+            modeLE.preferredHeight = 18f;
 
             // Store container reference
             _hintContainer = panelGo.transform;
@@ -251,16 +241,17 @@ namespace DepthWizard.UI
             hlg.childForceExpandWidth = false;
             hlg.childForceExpandHeight = false;
 
+            // FIX: increased row height from 18→22 for proper line spacing
             var rowLE = rowGo.AddComponent<LayoutElement>();
-            rowLE.preferredHeight = 18f;
+            rowLE.preferredHeight = 22f;
 
             // Key label
             var keyGo = new GameObject("Key");
             keyGo.transform.SetParent(rowGo.transform, false);
             var keyText = keyGo.AddComponent<TextMeshProUGUI>();
             keyText.text = key;
-            keyText.fontSize = 12f;
-            keyText.color = COL_KEY;
+            keyText.fontSize = HudTheme.FONT_KEY;
+            keyText.color = HudTheme.COL_ACCENT;
             keyText.fontStyle = FontStyles.Bold;
             keyText.alignment = TextAlignmentOptions.Left;
 
@@ -272,8 +263,8 @@ namespace DepthWizard.UI
             descGo.transform.SetParent(rowGo.transform, false);
             var descText = descGo.AddComponent<TextMeshProUGUI>();
             descText.text = description;
-            descText.fontSize = 12f;
-            descText.color = COL_DESC;
+            descText.fontSize = HudTheme.FONT_KEY;
+            descText.color = HudTheme.COL_TEXT;
             descText.alignment = TextAlignmentOptions.Left;
 
             var descLE = descGo.AddComponent<LayoutElement>();
@@ -288,7 +279,7 @@ namespace DepthWizard.UI
             divGo.transform.SetParent(_hintContainer, false);
 
             var divImage = divGo.AddComponent<Image>();
-            divImage.color = COL_DIVIDER;
+            divImage.color = HudTheme.COL_DIVIDER;
 
             var divLE = divGo.AddComponent<LayoutElement>();
             divLE.preferredHeight = 1f;

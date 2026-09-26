@@ -134,6 +134,12 @@ namespace DepthWizard.Terrain
             // 2. Write heights
             terrainData.SetHeights(0, 0, heights);
 
+            // Sync CPU heightmap data to GPU — required in standalone builds
+            // where Unity does NOT auto-sync like it does in the Editor.
+            // Without this, the terrain collider works (raycasts hit) but
+            // the terrain is invisible because the GPU has no height data.
+            terrainData.SyncHeightmap();
+
             // 3. Set size
             heightScale = Mathf.Max(heightScale, 1f);
             terrainData.size = new Vector3(terrainWidth, heightScale, terrainLength);
@@ -153,6 +159,25 @@ namespace DepthWizard.Terrain
 
                 terrainData.terrainLayers = new TerrainLayer[] { layer };
                 Debug.Log($"[RuntimeTerrainBuilder] Texture applied as TerrainLayer ({texture.width}×{texture.height})");
+            }
+            else
+            {
+                // URP renders terrain with ZERO TerrainLayers as completely
+                // invisible (the built-in pipeline would show gray). Create
+                // a fallback white layer so the terrain always renders.
+                Debug.LogWarning("[RuntimeTerrainBuilder] No texture available. Creating fallback white TerrainLayer.");
+                var fallbackTex = new Texture2D(4, 4, TextureFormat.RGBA32, false);
+                var white = new Color[16];
+                for (int i = 0; i < 16; i++) white[i] = new Color(0.75f, 0.75f, 0.75f, 1f);
+                fallbackTex.SetPixels(white);
+                fallbackTex.Apply();
+
+                TerrainLayer fallbackLayer = new TerrainLayer();
+                fallbackLayer.diffuseTexture = fallbackTex;
+                fallbackLayer.smoothness = 0f;
+                fallbackLayer.metallic = 0f;
+                fallbackLayer.tileSize = new Vector2(terrainWidth, terrainLength);
+                terrainData.terrainLayers = new TerrainLayer[] { fallbackLayer };
             }
 
             // -----------------------------------------------------------------
@@ -179,6 +204,9 @@ namespace DepthWizard.Terrain
                 existingCollider.enabled = false;
                 existingCollider.enabled = true;
 
+                // Force terrain rendering update (required in builds)
+                existingTerrain.Flush();
+
                 Debug.Log("[RuntimeTerrainBuilder] Updated existing terrain.");
             }
             else
@@ -196,6 +224,9 @@ namespace DepthWizard.Terrain
                 // Force collision rebuild
                 collider.enabled = false;
                 collider.enabled = true;
+
+                // Force terrain rendering update (required in builds)
+                terrain.Flush();
 
                 Debug.Log("[RuntimeTerrainBuilder] Created new terrain.");
             }
@@ -260,11 +291,31 @@ namespace DepthWizard.Terrain
                 // Common settings for all resolutions
                 terrainComp.detailObjectDistance = 150f;
                 terrainComp.treeBillboardDistance = 200f;
-                terrainComp.drawInstanced = true;
+                terrainComp.drawInstanced = false;
+
+                // Explicitly enable terrain rendering (belt-and-suspenders for builds)
+                terrainComp.drawHeightmap = true;
+                terrainComp.drawTreesAndFoliage = true;
 
                 Debug.Log(
                     $"[RuntimeTerrainBuilder] LOD tuned: pixelError={terrainComp.heightmapPixelError}, " +
                     $"basemapDist={terrainComp.basemapDistance}, res={actualResolution}");
+            }
+
+            // -----------------------------------------------------------------
+            // Final GPU sync — CRITICAL for standalone builds
+            //
+            // In the Editor, Unity automatically syncs terrain data to the GPU.
+            // In standalone builds, this does NOT happen automatically.
+            // Without this final Flush(), the terrain collider works (raycasts
+            // hit the geometry) but the terrain is invisible because the GPU
+            // never received the rendering data.
+            // -----------------------------------------------------------------
+            var finalTerrain = terrainGo.GetComponent<UnityEngine.Terrain>();
+            if (finalTerrain != null)
+            {
+                finalTerrain.Flush();
+                Debug.Log("[RuntimeTerrainBuilder] Final terrain Flush() completed.");
             }
 
             Debug.Log(
@@ -407,36 +458,56 @@ namespace DepthWizard.Terrain
         {
             // Try to find the URP terrain shader at runtime
             Shader shader = Shader.Find(TERRAIN_SHADER_NAME);
+            Material mat = null;
+
             if (shader != null)
             {
-                Material mat = new Material(shader);
-
-                // ---- Kill ALL specular / smoothness sources ----
-
-                // URP Terrain/Lit uses per-splat properties, not global _Smoothness
-                for (int i = 0; i < 8; i++)
-                {
-                    mat.SetFloat($"_Smoothness{i}", 0f);
-                    mat.SetFloat($"_Metallic{i}", 0f);
-                }
-                // Also set the global ones in case any fallback path reads them
-                mat.SetFloat("_Smoothness", 0f);
-                mat.SetFloat("_Metallic", 0f);
-
-                // Disable specular highlights and environment reflections via shader keywords
-                mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
-                mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
-                mat.SetFloat("_SpecularHighlights", 0f);
-                mat.SetFloat("_EnvironmentReflections", 0f);
-
-                terrain.materialTemplate = mat;
+                mat = new Material(shader);
             }
             else
             {
+                // Shader.Find fails in builds when the shader isn't referenced
+                // by any scene material. Fall back to a pre-made material in
+                // Resources/ that references the same shader — Unity includes
+                // Resources assets in every build.
                 Debug.LogWarning(
-                    $"[RuntimeTerrainBuilder] Shader '{TERRAIN_SHADER_NAME}' not found. " +
-                    "Terrain may render with default material.");
+                    $"[RuntimeTerrainBuilder] Shader.Find('{TERRAIN_SHADER_NAME}') returned null. " +
+                    "Loading fallback material from Resources/TerrainLitFallback.");
+
+                var fallback = Resources.Load<Material>("TerrainLitFallback");
+                if (fallback != null)
+                {
+                    // Instantiate so we don't modify the shared asset
+                    mat = new Material(fallback);
+                }
+                else
+                {
+                    Debug.LogError(
+                        "[RuntimeTerrainBuilder] Fallback material 'Resources/TerrainLitFallback' " +
+                        "not found. Terrain may render with default material.");
+                    return;
+                }
             }
+
+            // ---- Kill ALL specular / smoothness sources ----
+
+            // URP Terrain/Lit uses per-splat properties, not global _Smoothness
+            for (int i = 0; i < 8; i++)
+            {
+                mat.SetFloat($"_Smoothness{i}", 0f);
+                mat.SetFloat($"_Metallic{i}", 0f);
+            }
+            // Also set the global ones in case any fallback path reads them
+            mat.SetFloat("_Smoothness", 0f);
+            mat.SetFloat("_Metallic", 0f);
+
+            // Disable specular highlights and environment reflections via shader keywords
+            mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+            mat.SetFloat("_SpecularHighlights", 0f);
+            mat.SetFloat("_EnvironmentReflections", 0f);
+
+            terrain.materialTemplate = mat;
 
             // Disable reflection probes on the terrain renderer itself
             terrain.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;

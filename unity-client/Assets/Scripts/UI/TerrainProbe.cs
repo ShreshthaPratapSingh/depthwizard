@@ -26,10 +26,11 @@ namespace DepthWizard.UI
     public class TerrainProbe : MonoBehaviour
     {
         // --- Theme (matches FlythroughControlsPanel) ---
-        private static readonly Color COL_BG      = new Color(0.04f, 0.06f, 0.10f, 0.72f);
-        private static readonly Color COL_ACCENT   = new Color(0f, 0.898f, 1f, 1f);
-        private static readonly Color COL_LABEL    = new Color(0.88f, 0.90f, 0.93f, 1f);
-        private static readonly Color COL_DIM      = new Color(1f, 1f, 1f, 0.35f);
+        // Colors from centralized HudTheme
+        private static Color COL_BG      => HudTheme.COL_BG_PANEL;
+        private static Color COL_ACCENT  => HudTheme.COL_ACCENT;
+        private static Color COL_LABEL   => HudTheme.COL_TEXT;
+        private static Color COL_DIM     => HudTheme.COL_TEXT_DIM;
 
         // Legend ramp colours (matches terrain material gradient)
         private static readonly Color RAMP_LO = new Color(0.05f, 0.15f, 0.50f);
@@ -100,7 +101,7 @@ namespace DepthWizard.UI
             probeBg.color = COL_BG;
 
             var probeOutline = probeGo.AddComponent<Outline>();
-            probeOutline.effectColor = new Color(1f, 1f, 1f, 0.04f);
+            probeOutline.effectColor = HudTheme.COL_BORDER;
             probeOutline.effectDistance = new Vector2(1f, 1f);
 
             var probeTxtGo = new GameObject("ProbeText");
@@ -113,7 +114,7 @@ namespace DepthWizard.UI
 
             _probeText = probeTxtGo.AddComponent<TextMeshProUGUI>();
             _probeText.text = "Elevation: --";
-            _probeText.fontSize = 13f;
+            _probeText.fontSize = HudTheme.FONT_BODY;
             _probeText.color = COL_LABEL;
             _probeText.alignment = TextAlignmentOptions.Center;
 
@@ -127,13 +128,13 @@ namespace DepthWizard.UI
             legendRect.anchorMax = new Vector2(0f, 0.7f);
             legendRect.pivot = new Vector2(0f, 0.5f);
             legendRect.anchoredPosition = new Vector2(16f, 0f);
-            legendRect.sizeDelta = new Vector2(56f, 0f); // height from anchors
+            legendRect.sizeDelta = new Vector2(64f, 0f); // height from anchors, widened for readability
 
             var legendBg = legendGo.AddComponent<Image>();
             legendBg.color = COL_BG;
 
             var legendOutline = legendGo.AddComponent<Outline>();
-            legendOutline.effectColor = new Color(1f, 1f, 1f, 0.04f);
+            legendOutline.effectColor = HudTheme.COL_BORDER;
             legendOutline.effectDistance = new Vector2(1f, 1f);
 
             // Title "m"
@@ -148,7 +149,7 @@ namespace DepthWizard.UI
 
             _legendTitle = titleGo.AddComponent<TextMeshProUGUI>();
             _legendTitle.text = "m";
-            _legendTitle.fontSize = 11f;
+            _legendTitle.fontSize = HudTheme.FONT_SMALL;
             _legendTitle.color = COL_DIM;
             _legendTitle.alignment = TextAlignmentOptions.Center;
 
@@ -164,7 +165,7 @@ namespace DepthWizard.UI
 
             _legendMaxText = maxGo.AddComponent<TextMeshProUGUI>();
             _legendMaxText.text = "--";
-            _legendMaxText.fontSize = 10f;
+            _legendMaxText.fontSize = HudTheme.FONT_SMALL;
             _legendMaxText.color = COL_LABEL;
             _legendMaxText.alignment = TextAlignmentOptions.Center;
 
@@ -192,7 +193,7 @@ namespace DepthWizard.UI
 
             _legendMinText = minGo.AddComponent<TextMeshProUGUI>();
             _legendMinText.text = "--";
-            _legendMinText.fontSize = 10f;
+            _legendMinText.fontSize = HudTheme.FONT_SMALL;
             _legendMinText.color = COL_LABEL;
             _legendMinText.alignment = TextAlignmentOptions.Center;
         }

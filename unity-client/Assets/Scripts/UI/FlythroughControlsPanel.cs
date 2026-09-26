@@ -42,13 +42,14 @@ namespace DepthWizard.UI
         // Theme (matching ControlHintsOverlay / ExportButtonHandler palette)
         // ---------------------------------------------------------------------
 
-        private static readonly Color COL_BG         = new Color(0.04f, 0.06f, 0.10f, 0.72f);
-        private static readonly Color COL_ACCENT     = new Color(0f, 0.898f, 1f, 1f);       // #00E5FF
-        private static readonly Color COL_BTN_NORMAL = new Color(0f, 0.898f, 1f, 0.12f);
-        private static readonly Color COL_BTN_HOVER  = new Color(0f, 0.898f, 1f, 0.25f);
-        private static readonly Color COL_BTN_ACTIVE = new Color(0f, 0.898f, 1f, 0.35f);
-        private static readonly Color COL_LABEL      = new Color(0.88f, 0.90f, 0.93f, 1f);
-        private static readonly Color COL_KEY_HINT   = new Color(1f, 1f, 1f, 0.30f);
+        // Colors from centralized HudTheme
+        private static Color COL_BG         => HudTheme.COL_BG_PANEL;
+        private static Color COL_ACCENT     => HudTheme.COL_ACCENT;
+        private static Color COL_BTN_NORMAL => HudTheme.COL_BTN_NORMAL;
+        private static Color COL_BTN_HOVER  => HudTheme.COL_BTN_HOVER;
+        private static Color COL_BTN_ACTIVE => HudTheme.COL_BTN_PRESS;
+        private static Color COL_LABEL      => HudTheme.COL_TEXT;
+        private static Color COL_KEY_HINT   => HudTheme.COL_TEXT_DIM;
 
         // ---------------------------------------------------------------------
         // State / references
@@ -125,7 +126,7 @@ namespace DepthWizard.UI
             bgImage.color = COL_BG;
 
             var outline = panelGo.AddComponent<Outline>();
-            outline.effectColor = new Color(1f, 1f, 1f, 0.04f);
+            outline.effectColor = HudTheme.COL_BORDER;
             outline.effectDistance = new Vector2(1f, 1f);
 
             // --- Vertical layout ---
@@ -184,12 +185,12 @@ namespace DepthWizard.UI
             colors.normalColor = COL_BTN_NORMAL;
             colors.highlightedColor = COL_BTN_HOVER;
             colors.pressedColor = COL_BTN_ACTIVE;
-            colors.disabledColor = new Color(0.1f, 0.1f, 0.15f, 0.3f);
+            colors.disabledColor = HudTheme.COL_BTN_DISABLED;
             btn.colors = colors;
 
             // Outline for a subtle border
             var btnOutline = btnGo.AddComponent<Outline>();
-            btnOutline.effectColor = new Color(0f, 0.898f, 1f, 0.15f);
+            btnOutline.effectColor = HudTheme.COL_BORDER;
             btnOutline.effectDistance = new Vector2(1f, 1f);
 
             // --- Horizontal layout inside button ---
@@ -207,7 +208,7 @@ namespace DepthWizard.UI
             labelGo.transform.SetParent(btnGo.transform, false);
             var labelText = labelGo.AddComponent<TextMeshProUGUI>();
             labelText.text = label;
-            labelText.fontSize = 13f;
+            labelText.fontSize = HudTheme.FONT_BODY;
             labelText.color = COL_LABEL;
             labelText.fontStyle = FontStyles.Bold;
             labelText.alignment = TextAlignmentOptions.Left;
@@ -220,7 +221,7 @@ namespace DepthWizard.UI
             hintGo.transform.SetParent(btnGo.transform, false);
             var hintText = hintGo.AddComponent<TextMeshProUGUI>();
             hintText.text = keyHint;
-            hintText.fontSize = 10f;
+            hintText.fontSize = HudTheme.FONT_SMALL;
             hintText.color = COL_KEY_HINT;
             hintText.fontStyle = FontStyles.Italic;
             hintText.alignment = TextAlignmentOptions.Right;

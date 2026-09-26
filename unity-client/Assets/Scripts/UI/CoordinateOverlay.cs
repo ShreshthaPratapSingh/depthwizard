@@ -23,9 +23,10 @@ namespace DepthWizard.UI
     /// </summary>
     public class CoordinateOverlay : MonoBehaviour
     {
-        private static readonly Color COL_BG    = new Color(0.04f, 0.06f, 0.10f, 0.72f);
-        private static readonly Color COL_TITLE = new Color(0f, 0.898f, 1f, 1f);
-        private static readonly Color COL_BODY  = new Color(0.88f, 0.90f, 0.93f, 1f);
+        // Colors from centralized HudTheme
+        private static Color COL_BG    => HudTheme.COL_BG_PANEL;
+        private static Color COL_TITLE => HudTheme.COL_ACCENT;
+        private static Color COL_BODY  => HudTheme.COL_TEXT;
 
         private TMP_Text _body;
         private GameObject _root;
@@ -177,8 +178,8 @@ namespace DepthWizard.UI
             panelRect.anchorMin = new Vector2(0f, 1f);
             panelRect.anchorMax = new Vector2(0f, 1f);
             panelRect.pivot     = new Vector2(0f, 1f);
-            panelRect.anchoredPosition = new Vector2(16f, -192f);
-            panelRect.sizeDelta = new Vector2(320f, 105f);
+            panelRect.anchoredPosition = new Vector2(16f, -172f);
+            panelRect.sizeDelta = new Vector2(HudTheme.PANEL_WIDTH, 90f);
 
             var bg = panelGo.AddComponent<Image>();
             bg.color = COL_BG;
@@ -193,9 +194,10 @@ namespace DepthWizard.UI
             titleRect.anchoredPosition = new Vector2(0f, -8f);
             titleRect.sizeDelta = new Vector2(-24f, 22f);
             var title = titleGo.AddComponent<TextMeshProUGUI>();
-            title.text      = "Location";
-            title.fontSize  = 16;
+            title.text      = "LOCATION";
+            title.fontSize  = HudTheme.FONT_TITLE;
             title.color     = COL_TITLE;
+            title.fontStyle = FontStyles.Bold;
             title.alignment = TextAlignmentOptions.Left;
 
             // Body (live-updating coordinates)
@@ -207,7 +209,7 @@ namespace DepthWizard.UI
             bodyRect.offsetMin = new Vector2(12f, 8f);
             bodyRect.offsetMax = new Vector2(-12f, -32f);
             _body = bodyGo.AddComponent<TextMeshProUGUI>();
-            _body.fontSize  = 15;
+            _body.fontSize  = HudTheme.FONT_BODY;
             _body.color     = COL_BODY;
             _body.alignment = TextAlignmentOptions.TopLeft;
             _body.text      = "Acquiring...";

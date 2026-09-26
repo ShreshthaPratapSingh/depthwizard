@@ -38,6 +38,8 @@ namespace DepthWizard.UI
         private const string DEFAULT_BACKEND = "http://localhost:8000";
 
         private static readonly Color COL_BTN = new Color(0.06f, 0.10f, 0.16f, 0.92f);
+        private static readonly Color COL_BTN_HOVER = new Color(0.08f, 0.14f, 0.22f, 0.95f);
+        private static readonly Color COL_BTN_PRESS = new Color(0.04f, 0.08f, 0.14f, 1f);
         private static readonly Color COL_ACCENT = new Color(0f, 0.898f, 1f, 1f);
 
         private string _backendUrl = DEFAULT_BACKEND;
@@ -125,6 +127,22 @@ namespace DepthWizard.UI
             var captured = sample;
             btn.onClick.AddListener(() => OnSampleClicked(captured));
 
+            // Hover/pressed states for visual affordance
+            var colors = btn.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(
+                COL_BTN_HOVER.r / Mathf.Max(COL_BTN.r, 0.01f),
+                COL_BTN_HOVER.g / Mathf.Max(COL_BTN.g, 0.01f),
+                COL_BTN_HOVER.b / Mathf.Max(COL_BTN.b, 0.01f), 1f);
+            colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
+            colors.fadeDuration = 0.1f;
+            btn.colors = colors;
+
+            // Subtle accent outline for clickable affordance
+            var outline = go.AddComponent<Outline>();
+            outline.effectColor = new Color(0f, 0.898f, 1f, 0.20f);
+            outline.effectDistance = new Vector2(1f, 1f);
+
             var textGo = new GameObject("Label");
             textGo.transform.SetParent(go.transform, false);
             var textRect = textGo.AddComponent<RectTransform>();
@@ -133,7 +151,7 @@ namespace DepthWizard.UI
             textRect.offsetMin = Vector2.zero;
             textRect.offsetMax = Vector2.zero;
             var tmp = textGo.AddComponent<TextMeshProUGUI>();
-            tmp.text = sample.name;
+            tmp.text = "\U0001F4CD " + sample.name;
             tmp.fontSize = 14;
             tmp.color = COL_ACCENT;
             tmp.alignment = TextAlignmentOptions.Center;

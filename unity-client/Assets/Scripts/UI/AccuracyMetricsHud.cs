@@ -20,10 +20,11 @@ namespace DepthWizard.UI
     /// </summary>
     public class AccuracyMetricsHud : MonoBehaviour
     {
-        private static readonly Color COL_BG = new Color(0.04f, 0.06f, 0.10f, 0.72f);
-        private static readonly Color COL_TITLE = new Color(0f, 0.898f, 1f, 1f);
-        private static readonly Color COL_BODY = new Color(0.88f, 0.90f, 0.93f, 1f);
-        private static readonly Color COL_WARN = new Color(1f, 0.75f, 0.35f, 1f);
+        // Colors from centralized HudTheme
+        private static Color COL_BG    => HudTheme.COL_BG_PANEL;
+        private static Color COL_TITLE => HudTheme.COL_ACCENT;
+        private static Color COL_BODY  => HudTheme.COL_TEXT;
+        private static Color COL_WARN  => HudTheme.COL_WARN;
 
         private TMP_Text _body;
 
@@ -68,7 +69,7 @@ namespace DepthWizard.UI
             panelRect.anchorMax = new Vector2(0f, 1f);
             panelRect.pivot = new Vector2(0f, 1f);
             panelRect.anchoredPosition = new Vector2(16f, -16f);
-            panelRect.sizeDelta = new Vector2(320f, 168f);
+            panelRect.sizeDelta = new Vector2(HudTheme.PANEL_WIDTH, 148f);
 
             var bg = panelGo.AddComponent<Image>();
             bg.color = COL_BG;
@@ -80,11 +81,12 @@ namespace DepthWizard.UI
             titleRect.anchorMax = new Vector2(1f, 1f);
             titleRect.pivot = new Vector2(0.5f, 1f);
             titleRect.anchoredPosition = new Vector2(0f, -10f);
-            titleRect.sizeDelta = new Vector2(-24f, 28f);
+            titleRect.sizeDelta = new Vector2(-24f, 22f);
             var title = titleGo.AddComponent<TextMeshProUGUI>();
-            title.text = "Calibration";
-            title.fontSize = 18;
+            title.text = "CALIBRATION";
+            title.fontSize = HudTheme.FONT_TITLE;
             title.color = COL_TITLE;
+            title.fontStyle = FontStyles.Bold;
             title.alignment = TextAlignmentOptions.Left;
 
             var bodyGo = new GameObject("Body");
@@ -95,7 +97,7 @@ namespace DepthWizard.UI
             bodyRect.offsetMin = new Vector2(12f, 12f);
             bodyRect.offsetMax = new Vector2(-12f, -40f);
             _body = bodyGo.AddComponent<TextMeshProUGUI>();
-            _body.fontSize = 16;
+            _body.fontSize = HudTheme.FONT_BODY;
             _body.color = COL_BODY;
             _body.alignment = TextAlignmentOptions.TopLeft;
         }
