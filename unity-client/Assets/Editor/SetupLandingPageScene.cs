@@ -263,6 +263,11 @@ namespace DepthWizard.Editor
             borderImg.type = Image.Type.Sliced;
             borderImg.pixelsPerUnitMultiplier = 1;
 
+            // Subtle cyan glow outline on the drop zone border
+            var glowOutline = go.AddComponent<Outline>();
+            glowOutline.effectColor = new Color(0f, 0.898f, 1f, 0.12f);
+            glowOutline.effectDistance = new Vector2(2f, 2f);
+
             var le = go.AddComponent<LayoutElement>();
             le.preferredHeight = 380;
             le.preferredWidth = 660;

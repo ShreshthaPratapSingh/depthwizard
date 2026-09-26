@@ -36,13 +36,14 @@ namespace DepthWizard.UI
         // Theme colors (matching landing page sci-fi palette)
         // ---------------------------------------------------------------------
 
-        private static readonly Color COL_BG        = new Color(0.06f, 0.09f, 0.14f, 0.85f);
-        private static readonly Color COL_ACCENT    = new Color(0f, 0.898f, 1f, 1f);       // #00E5FF
-        private static readonly Color COL_SUCCESS   = new Color(0.412f, 0.941f, 0.682f, 1f); // #69F0AE
-        private static readonly Color COL_ERROR     = new Color(1f, 0.322f, 0.322f, 1f);     // #FF5252
-        private static readonly Color COL_DISABLED  = new Color(1f, 1f, 1f, 0.25f);
-        private static readonly Color COL_BTN_NORMAL = new Color(0f, 0.898f, 1f, 0.15f);
-        private static readonly Color COL_BTN_HOVER  = new Color(0f, 0.898f, 1f, 0.3f);
+        // Colors from centralized HudTheme
+        private static Color COL_BG        => HudTheme.COL_BG_PANEL;
+        private static Color COL_ACCENT    => HudTheme.COL_ACCENT;
+        private static Color COL_SUCCESS   => HudTheme.COL_SUCCESS;
+        private static Color COL_ERROR     => HudTheme.COL_ERROR;
+        private static Color COL_DISABLED  => HudTheme.COL_DISABLED;
+        private static Color COL_BTN_NORMAL => HudTheme.COL_BTN_NORMAL;
+        private static Color COL_BTN_HOVER  => HudTheme.COL_BTN_HOVER;
 
         private const string DEFAULT_LABEL = "Export Terrain";
         private const float FEEDBACK_DURATION = 2.5f;
@@ -129,7 +130,7 @@ namespace DepthWizard.UI
             colors.normalColor = COL_BTN_NORMAL;
             colors.highlightedColor = COL_BTN_HOVER;
             colors.pressedColor = COL_ACCENT;
-            colors.disabledColor = new Color(0.1f, 0.1f, 0.15f, 0.5f);
+            colors.disabledColor = HudTheme.COL_BTN_DISABLED;
             _exportButton.colors = colors;
 
             // Rounded look via outline
@@ -149,7 +150,7 @@ namespace DepthWizard.UI
 
             _buttonLabel = labelGo.AddComponent<TextMeshProUGUI>();
             _buttonLabel.text = DEFAULT_LABEL;
-            _buttonLabel.fontSize = 18f;
+            _buttonLabel.fontSize = HudTheme.FONT_BUTTON;
             _buttonLabel.color = COL_ACCENT;
             _buttonLabel.alignment = TextAlignmentOptions.Center;
             _buttonLabel.fontStyle = FontStyles.Bold;
@@ -166,7 +167,7 @@ namespace DepthWizard.UI
 
             _pathLabel = pathGo.AddComponent<TextMeshProUGUI>();
             _pathLabel.text = "Press E or click to export";
-            _pathLabel.fontSize = 11f;
+            _pathLabel.fontSize = HudTheme.FONT_SMALL;
             _pathLabel.color = COL_DISABLED;
             _pathLabel.alignment = TextAlignmentOptions.Center;
             _pathLabel.enableWordWrapping = true;

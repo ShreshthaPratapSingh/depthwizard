@@ -172,7 +172,7 @@ namespace DepthWizard.Camera
 
         private void OnEnable()
         {
-            _controls.Enable();
+            _controls?.Enable();
 
             if (_toggleModeAction != null)
             {
@@ -192,7 +192,7 @@ namespace DepthWizard.Camera
                 _toggleModeAction.performed -= OnToggleCameraMode;
             }
 
-            _controls.Disable();
+            _controls?.Disable();
             SetCursorLocked(false);
         }
 

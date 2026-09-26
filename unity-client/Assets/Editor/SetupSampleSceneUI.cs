@@ -63,6 +63,13 @@ public static class SetupSampleSceneUI
             changed = true;
         }
 
+        // --- PostProcessingTuner (bloom streak fix) ---
+        if (cam.GetComponent<DepthWizard.Terrain.PostProcessingTuner>() == null)
+        {
+            Undo.AddComponent<DepthWizard.Terrain.PostProcessingTuner>(cam.gameObject);
+            changed = true;
+        }
+
         if (!changed)
         {
             EditorUtility.DisplayDialog(

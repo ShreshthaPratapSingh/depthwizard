@@ -34,13 +34,13 @@ namespace DepthWizard.UI
     /// </summary>
     public class LoadNewImageButton : MonoBehaviour
     {
-        // Theme (matching existing UI palette)
-        private static readonly Color COL_BG         = new Color(0.04f, 0.06f, 0.10f, 0.72f);
-        private static readonly Color COL_ACCENT     = new Color(0f, 0.898f, 1f, 1f);       // #00E5FF
-        private static readonly Color COL_BTN_NORMAL = new Color(0f, 0.898f, 1f, 0.12f);
-        private static readonly Color COL_BTN_HOVER  = new Color(0f, 0.898f, 1f, 0.25f);
-        private static readonly Color COL_BTN_PRESS  = new Color(0f, 0.898f, 1f, 0.35f);
-        private static readonly Color COL_LABEL      = new Color(0.88f, 0.90f, 0.93f, 1f);
+        // Colors from centralized HudTheme
+        private static Color COL_BG         => HudTheme.COL_BG_PANEL;
+        private static Color COL_ACCENT     => HudTheme.COL_ACCENT;
+        private static Color COL_BTN_NORMAL => HudTheme.COL_BTN_NORMAL;
+        private static Color COL_BTN_HOVER  => HudTheme.COL_BTN_HOVER;
+        private static Color COL_BTN_PRESS  => HudTheme.COL_BTN_PRESS;
+        private static Color COL_LABEL      => HudTheme.COL_TEXT;
 
         private const string LANDING_SCENE = "LandingPage";
 
@@ -73,9 +73,9 @@ namespace DepthWizard.UI
             panelRect.anchorMin = new Vector2(0f, 1f);
             panelRect.anchorMax = new Vector2(0f, 1f);
             panelRect.pivot = new Vector2(0f, 1f);
-            // Position below the AccuracyMetricsHud (which is at y=-16, height ~168)
-            panelRect.anchoredPosition = new Vector2(16f, -200f);
-            panelRect.sizeDelta = new Vector2(200f, 36f);
+            // FIX: Position below Calibration (148px) + Location (90px) + gaps
+            panelRect.anchoredPosition = new Vector2(16f, -270f);
+            panelRect.sizeDelta = new Vector2(HudTheme.PANEL_WIDTH, 36f);
 
             var bgImage = panelGo.AddComponent<Image>();
             bgImage.color = COL_BTN_NORMAL;
@@ -92,7 +92,7 @@ namespace DepthWizard.UI
 
             // Outline
             var outline = panelGo.AddComponent<Outline>();
-            outline.effectColor = new Color(0f, 0.898f, 1f, 0.15f);
+            outline.effectColor = HudTheme.COL_BORDER;
             outline.effectDistance = new Vector2(1f, 1f);
 
             // Label
@@ -107,7 +107,7 @@ namespace DepthWizard.UI
 
             var label = labelGo.AddComponent<TextMeshProUGUI>();
             label.text = "← Load New Image";
-            label.fontSize = 14f;
+            label.fontSize = HudTheme.FONT_BUTTON;
             label.color = COL_LABEL;
             label.fontStyle = FontStyles.Bold;
             label.alignment = TextAlignmentOptions.Center;

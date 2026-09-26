@@ -276,8 +276,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a87fb32b5c8152d478b0cee7c29bfaa7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DepthWizard.Camera.DroneController
-  moveSpeed: 100
-  boostMultiplier: 20
+  moveSpeed: 75
+  boostMultiplier: 5
   lookSensitivity: 0.15
   maxPitch: 89
   lockCursorOnPlay: 1
